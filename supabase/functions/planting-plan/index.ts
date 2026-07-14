@@ -1,7 +1,11 @@
 // PlantRight — "planting-plan" Edge Function
-// Takes a user's address/city, uses Firecrawl to scrape live, location-specific
-// growing data (USDA hardiness zone, frost dates, planting calendar), builds a
-// structured plan, saves it to the database for the signed-in user, and returns it.
+// Takes a user's address/city and builds a structured planting plan:
+//   • USDA hardiness zone: resolved DETERMINISTICALLY from official USDA data
+//     (ZIP → phzmapi.org, geocoding via Nominatim when the input has no ZIP),
+//     with Firecrawl text extraction only as a last-resort fallback.
+//   • Frost dates + planting calendar + cited sources: live web data via
+//     Firecrawl, restricted to pages that actually mention the user's city.
+// The plan is saved to the database for the signed-in user (RLS-owned).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -19,8 +23,22 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
-// Curated, horticulturally-sound plant picks per USDA zone. The zone itself is
-// derived from the user's specific address via Firecrawl.
+const UA = { "User-Agent": "PlantRight/1.0 (plantright.net)" };
+
+const fetchJson = async (url: string, ms = 8000): Promise<any | null> => {
+  try {
+    const res = await fetch(url, {
+      headers: UA,
+      signal: AbortSignal.timeout(ms),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+};
+
+// Curated, horticulturally-sound plant picks per USDA zone.
 const ZONE_PLANTS: Record<string, { name: string; why: string }[]> = {
   "3": [
     { name: "Siberian Iris", why: "Cold-hardy perennial that shrugs off deep freezes." },
@@ -75,6 +93,36 @@ const genericPlants = [
   { name: "Marigolds", why: "Easy annual that deters common garden pests." },
 ];
 
+// --- Deterministic zone lookup: input → ZIP → official USDA zone -----------
+async function lookupZone(
+  location: string
+): Promise<{ zone: string; zip: string } | null> {
+  // 1. If the input already contains a US ZIP, use it directly.
+  let zip = location.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
+
+  // 2. Otherwise geocode the location and take (or reverse-derive) a ZIP.
+  if (!zip) {
+    const results = await fetchJson(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1&countrycodes=us`
+    );
+    const hit = Array.isArray(results) ? results[0] : null;
+    if (!hit) return null;
+    zip = hit.address?.postcode?.match(/\d{5}/)?.[0];
+    if (!zip && hit.lat && hit.lon) {
+      const rev = await fetchJson(
+        `https://nominatim.openstreetmap.org/reverse?lat=${hit.lat}&lon=${hit.lon}&format=json`
+      );
+      zip = rev?.address?.postcode?.match(/\d{5}/)?.[0];
+    }
+  }
+  if (!zip) return null;
+
+  // 3. ZIP → USDA hardiness zone (2023 map) via phzmapi.
+  const phz = await fetchJson(`https://phzmapi.org/${zip}.json`);
+  const zone = typeof phz?.zone === "string" ? phz.zone.toLowerCase() : "";
+  return /^(1[0-3]|[1-9])[ab]?$/.test(zone) ? { zone, zip } : null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -97,10 +145,7 @@ Deno.serve(async (req: Request) => {
       }
     }
     if (!firecrawlKey) {
-      return json(
-        { error: "Server is missing FIRECRAWL_API_KEY." },
-        500
-      );
+      return json({ error: "Server is missing FIRECRAWL_API_KEY." }, 500);
     }
 
     const { location } = await req.json().catch(() => ({}));
@@ -120,29 +165,33 @@ Deno.serve(async (req: Request) => {
     } = await supabase.auth.getUser();
     if (!user) return json({ error: "Not authenticated." }, 401);
 
-    // --- Firecrawl: live search + scrape of location-specific growing data ---
+    // --- Kick off official zone lookup and Firecrawl search in parallel ---
     const query =
       `${location} USDA plant hardiness zone, average last spring frost and ` +
       `first fall frost dates, and vegetable planting calendar`;
 
-    const fcRes = await fetch("https://api.firecrawl.dev/v2/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${firecrawlKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        limit: 5,
-        sources: [{ type: "web" }],
-        scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+    const [zoneLookup, fcRes] = await Promise.all([
+      lookupZone(location),
+      fetch("https://api.firecrawl.dev/v2/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${firecrawlKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          limit: 5,
+          sources: [{ type: "web" }],
+          scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+        }),
       }),
-    });
+    ]);
 
     if (!fcRes.ok) {
       const detail = await fcRes.text();
+      console.error("Firecrawl error:", detail.slice(0, 500));
       return json(
-        { error: `Firecrawl request failed (${fcRes.status}). ${detail.slice(0, 200)}` },
+        { error: "Live growing-data lookup failed. Please try again shortly." },
         502
       );
     }
@@ -155,18 +204,8 @@ Deno.serve(async (req: Request) => {
       markdown?: string;
     }>;
 
-    const corpus = results
-      .map((r) => `${r.title ?? ""}\n${r.description ?? ""}\n${r.markdown ?? ""}`)
-      .join("\n\n")
-      .slice(0, 60000);
-
-    // --- Parse structured signals out of the scraped content ---
-    // Zone detection. Generic "frost dates by USDA zone" pages list EVERY zone
-    // (1,2,3…), so counting across all results is unreliable. Instead, scope to
-    // the results that are actually about the searched city, and recognise both
-    // "hardiness zone 6a" phrasing and bare "6a"-style codes.
-    // A leading segment with digits is a street address ("1600 Amphitheatre
-    // Pkwy, Mountain View, CA") — the city is the next segment, not the street.
+    // Results that are actually ABOUT the searched place. A leading segment
+    // with digits is a street address — the city is the next segment.
     const parts = location.split(",");
     const city = ((/\d/.test(parts[0]) && parts[1] ? parts[1] : parts[0]) || location)
       .trim()
@@ -176,34 +215,40 @@ Deno.serve(async (req: Request) => {
         .toLowerCase()
         .includes(city)
     );
-    const zoneText = (scoped.length ? scoped : results)
+
+    // Corpus for text extraction: ONLY city-scoped pages. Generic "zone chart"
+    // pages list every zone and every date — using them caused wrong answers.
+    const corpus = scoped
       .map((r) => `${r.title ?? ""}\n${r.description ?? ""}\n${r.markdown ?? ""}`)
       .join("\n\n")
       .slice(0, 60000);
 
-    const zoneCounts: Record<string, number> = {};
-    const addZone = (z: string) => {
-      if (z) zoneCounts[z] = (zoneCounts[z] ?? 0) + 1;
-    };
-    let zm: RegExpExecArray | null;
-    const reZonePhrase = /(?:hardiness\s+)?zone\s*(?:is|:)?\s*(1[0-3]|[1-9])\s*([ab])?/gi;
-    while ((zm = reZonePhrase.exec(zoneText)) !== null) {
-      addZone(`${zm[1]}${zm[2]?.toLowerCase() ?? ""}`);
+    // --- Zone: official USDA data first, scoped text second ---
+    let zone = zoneLookup?.zone ?? "";
+    let zoneSource: "usda" | "scraped" | "" = zone ? "usda" : "";
+    if (!zone && corpus) {
+      const zoneCounts: Record<string, number> = {};
+      const addZone = (z: string, w: number) => {
+        if (z) zoneCounts[z] = (zoneCounts[z] ?? 0) + w;
+      };
+      let zm: RegExpExecArray | null;
+      const reZonePhrase = /(?:hardiness\s+)?zone\s*(?:is|:)?\s*(1[0-3]|[1-9])\s*([ab])?/gi;
+      while ((zm = reZonePhrase.exec(corpus)) !== null) {
+        addZone(`${zm[1]}${zm[2]?.toLowerCase() ?? ""}`, 2);
+      }
+      const reZoneBare = /\b(1[0-3]|[1-9])([ab])\b/gi;
+      while ((zm = reZoneBare.exec(corpus)) !== null) {
+        addZone(`${zm[1]}${zm[2].toLowerCase()}`, 1);
+      }
+      zone =
+        Object.entries(zoneCounts).sort(
+          (a, b) => b[1] - a[1] || b[0].length - a[0].length
+        )[0]?.[0] ?? "";
+      if (zone) zoneSource = "scraped";
     }
-    const reZoneBare = /\b(1[0-3]|[1-9])([ab])\b/gi; // "6a", "5b" — letter required
-    while ((zm = reZoneBare.exec(zoneText)) !== null) {
-      addZone(`${zm[1]}${zm[2].toLowerCase()}`);
-    }
-    // Most frequent wins; ties prefer the more specific code (with a/b suffix).
-    const zone =
-      Object.entries(zoneCounts).sort(
-        (a, b) => b[1] - a[1] || b[0].length - a[0].length
-      )[0]?.[0] ?? "";
     const zoneNum = zone.replace(/[ab]$/i, "");
 
-    // The last spring frost is always a spring date and the first fall frost a
-    // fall date — constrain the month AND capture the date itself, so a nearby
-    // date from the other season can't be returned by accident.
+    // --- Frost dates: scoped pages only, season-constrained, date captured ---
     const springMonths = "(?:February|March|April|May|June)";
     const fallMonths = "(?:September|October|November|December)";
     const captureDate = (re: RegExp): string => {
@@ -219,18 +264,38 @@ Deno.serve(async (req: Request) => {
 
     const recommendations = ZONE_PLANTS[zoneNum] ?? genericPlants;
 
-    const summary =
-      `Based on live data for ${location}, your USDA hardiness zone is ` +
-      `${zone || "not clearly listed in the sources below"}. ` +
-      `Use the frost dates to time planting: start cool-season crops a few weeks ` +
-      `before the last spring frost, and warm-season crops after it. The plants ` +
-      `below are matched to your zone so they can actually survive your winters and ` +
-      `ripen in your summers.`;
+    const zonePhrase =
+      zoneSource === "usda"
+        ? `your USDA hardiness zone is ${zone} (official USDA 2023 map${zoneLookup?.zip ? `, ZIP ${zoneLookup.zip}` : ""})`
+        : zone
+          ? `your USDA hardiness zone appears to be ${zone} (from the sources below)`
+          : `your USDA hardiness zone is not clearly listed in the sources below`;
 
-    const sources = results
-      .filter((r) => r.url)
-      .slice(0, 5)
-      .map((r) => ({ title: r.title || r.url!, url: r.url! }));
+    const summary =
+      `Based on live data for ${location}, ${zonePhrase}. ` +
+      (zoneNum && Number(zoneNum) >= 10
+        ? `Frost is rare to nonexistent in your zone — you can grow nearly ` +
+          `year-round, with summer heat (not cold) as the main constraint. ` +
+          `The plants below are matched to your zone.`
+        : `Use the frost dates to time planting: start cool-season crops a few ` +
+          `weeks before the last spring frost, and warm-season crops after it. ` +
+          `The plants below are matched to your zone so they can actually ` +
+          `survive your winters and ripen in your summers.`);
+
+    const sources = [
+      ...(zoneSource === "usda"
+        ? [
+            {
+              title: "USDA Plant Hardiness Zone Map (official)",
+              url: "https://planthardiness.ars.usda.gov/",
+            },
+          ]
+        : []),
+      ...(scoped.length ? scoped : results)
+        .filter((r) => r.url)
+        .slice(0, 5)
+        .map((r) => ({ title: r.title || r.url!, url: r.url! })),
+    ];
 
     const plan = {
       location,
@@ -249,7 +314,6 @@ Deno.serve(async (req: Request) => {
       .from("planting_plans")
       .insert({ user_id: user.id, location, plan });
     if (insertErr) {
-      // Still return the plan even if saving hiccups.
       return json({ plan, warning: `Saved-plan write failed: ${insertErr.message}` });
     }
 
