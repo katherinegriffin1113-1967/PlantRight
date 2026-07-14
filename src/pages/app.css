@@ -365,8 +365,180 @@
   color: var(--slate-moss, #5a6b5e);
 }
 
+/* ---------- Banners, plan badge ---------- */
+.dash-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.6rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+.dash-banner.success {
+  background: #e7f4ec;
+  color: var(--deep-grove, #2d6a4f);
+  border: 1px solid #bfe3cd;
+}
+.dash-banner.info {
+  background: #eef4f8;
+  color: #33586e;
+  border: 1px solid #d3e2ec;
+}
+.dash-banner.error {
+  background: #fdeceb;
+  color: #c1121f;
+  border: 1px solid #f5cfcd;
+}
+.dash-banner button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: inherit;
+  line-height: 1;
+}
+.dash-plan-badge {
+  background: var(--morning-dew, #b7e4c7);
+  color: var(--deep-grove, #2d6a4f);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* ---------- Upgrade section ---------- */
+.dash-upgrade {
+  margin-top: 3rem;
+  border-top: 1px solid #e6efe9;
+  padding-top: 2rem;
+}
+.dash-upgrade h2 {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  font-size: 1.5rem;
+  margin: 0 0 0.3rem;
+}
+.dash-upgrade-sub {
+  color: var(--slate-moss, #5a6b5e);
+  margin: 0 0 1.25rem;
+}
+.dash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--slate-moss, #5a6b5e);
+}
+.dash-toggle .on {
+  color: var(--deep-soil, #1a2e1f);
+  font-weight: 600;
+}
+.dash-toggle em {
+  font-style: normal;
+  color: var(--canopy, #40916c);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+.dash-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 9999px;
+  border: none;
+  background: #cfdfd5;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.dash-switch.annual {
+  background: var(--canopy, #40916c);
+}
+.dash-switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.dash-switch.annual i {
+  transform: translateX(20px);
+}
+.dash-tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.dash-tier {
+  background: #fff;
+  border: 1.5px solid #e6efe9;
+  border-radius: 0.9rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.dash-tier.featured {
+  border-color: var(--canopy, #40916c);
+  box-shadow: 0 4px 16px rgba(26, 46, 31, 0.08);
+}
+.dash-tier.current {
+  border-color: var(--new-growth, #74c69d);
+  background: #f4faf6;
+}
+.dash-tier-name {
+  font-weight: 700;
+}
+.dash-tier-price {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  font-size: 1.9rem;
+  color: var(--deep-soil, #1a2e1f);
+}
+.dash-tier-price span {
+  font-size: 0.95rem;
+  color: var(--slate-moss, #5a6b5e);
+  font-family: var(--font-body, "Inter", sans-serif);
+}
+.dash-tier-blurb {
+  font-size: 0.82rem;
+  color: var(--slate-moss, #5a6b5e);
+  min-height: 2.2em;
+}
+.dash-tier button {
+  margin-top: 0.6rem;
+  padding: 0.7rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--deep-grove, #2d6a4f);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dash-tier button:hover:not(:disabled) {
+  background: var(--canopy, #40916c);
+}
+.dash-tier button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.dash-tier.current button {
+  background: #9db8a6;
+}
+.dash-upgrade-note {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--slate-moss, #5a6b5e);
+}
+
 @media (max-width: 560px) {
   .plan-stats {
     grid-template-columns: 1fr;
+  }
+  .dash-email {
+    display: none;
   }
 }

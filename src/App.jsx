@@ -782,6 +782,7 @@ function Social() {
 /* ================================================================== */
 const plans = [
   {
+    id: "starter",
     name: "Starter",
     monthly: 4,
     annual: 2,
@@ -790,6 +791,7 @@ const plans = [
     featured: false,
   },
   {
+    id: "yardpro",
     name: "Yard Pro",
     monthly: 9,
     annual: 5,
@@ -803,6 +805,7 @@ const plans = [
     featured: true,
   },
   {
+    id: "homelandscape",
     name: "Home + Landscape",
     monthly: 19,
     annual: 11,
@@ -869,7 +872,7 @@ function Pricing() {
                 ))}
               </ul>
               <a
-                href="#hero-cta"
+                href={`/app?plan=${p.id}&interval=${annual ? "annual" : "monthly"}`}
                 className={`btn btn-block ${
                   p.featured ? "btn-primary" : "btn-outline"
                 }`}
@@ -877,7 +880,7 @@ function Pricing() {
                   p.featured ? track("pricing_cta_pro") : track("pricing_cta")
                 }
               >
-                Start Free Trial
+                Choose {p.name}
               </a>
             </div>
           ))}
