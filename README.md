@@ -1,6 +1,6 @@
 # 🌿 PlantRight
 
-**Live app:** https://plantright-app.netlify.app
+**Live app:** https://plantright.net (also at https://plantright-app.netlify.app)
 
 PlantRight gives homeowners an **address-specific planting plan** — USDA hardiness
 zone, frost dates, and plants that will actually survive their yard — instead of

@@ -37,8 +37,8 @@ const PLANS: Record<
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "https://plantright-app.netlify.app",
-  "https://plantright.io",
-  "https://www.plantright.io",
+  "https://plantright.net",
+  "https://www.plantright.net",
 ]);
 
 async function getStripeKey(): Promise<string | undefined> {
