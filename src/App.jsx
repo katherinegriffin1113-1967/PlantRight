@@ -98,11 +98,11 @@ function Nav() {
         </ul>
 
         <div className="nav-actions">
-          <a href="#signin" className="nav-signin">
+          <a href="/login" className="nav-signin">
             Sign In
           </a>
           <a
-            href="#hero-cta"
+            href="/app"
             className="btn btn-primary nav-cta"
             onClick={() => track("hero_cta_primary", { source: "nav" })}
           >
@@ -127,11 +127,11 @@ function Nav() {
             {l.label}
           </a>
         ))}
-        <a href="#signin" onClick={() => setMenuOpen(false)}>
+        <a href="/login" onClick={() => setMenuOpen(false)}>
           Sign In
         </a>
         <a
-          href="#hero-cta"
+          href="/app"
           className="btn btn-primary"
           onClick={() => setMenuOpen(false)}
         >
@@ -208,7 +208,7 @@ function Hero() {
 
           <div className="hero-ctas" id="hero-cta">
             <a
-              href="#pricing"
+              href="/app"
               className="btn btn-primary btn-lg"
               onClick={() => track("hero_cta_primary", { source: "hero" })}
             >
@@ -952,7 +952,7 @@ function FinalCta() {
         </p>
         <div className="final-ctas">
           <a
-            href="#pricing"
+            href="/app"
             className="btn btn-light btn-lg"
             onClick={() => track("hero_cta_primary", { source: "final" })}
           >
@@ -1042,7 +1042,7 @@ function Footer() {
 /* ================================================================== */
 /*  APP                                                               */
 /* ================================================================== */
-export default function App() {
+export default function LandingPage() {
   useScrollReveal();
   useScrollDepth();
 
