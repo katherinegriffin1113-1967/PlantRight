@@ -35,9 +35,94 @@ const PLAN_NAMES = {
   homelandscape: "Home + Landscape",
 };
 
+// The questions that narrow the catalog. `multi` groups are toggles that add
+// up; the rest are single-choice, with "any" meaning "no preference".
+const QUESTIONS = [
+  {
+    key: "types",
+    multi: true,
+    label: "What do you want to plant?",
+    hint: "Pick as many as you like — or none for a bit of everything.",
+    options: [
+      { value: "vegetable", label: "🥕 Vegetables" },
+      { value: "fruit", label: "🍓 Fruit" },
+      { value: "herb", label: "🌿 Herbs" },
+      { value: "flower", label: "🌸 Flowers" },
+      { value: "shrub", label: "🪴 Shrubs" },
+      { value: "tree", label: "🌳 Trees" },
+      { value: "vine", label: "🍃 Vines" },
+      { value: "grass", label: "🌾 Grasses" },
+      { value: "groundcover", label: "🍀 Groundcover" },
+    ],
+  },
+  {
+    key: "life",
+    label: "Annuals or perennials?",
+    hint: "Annuals are replanted each year; perennials come back on their own.",
+    options: [
+      { value: "any", label: "Either" },
+      { value: "annual", label: "Annuals" },
+      { value: "perennial", label: "Perennials" },
+    ],
+  },
+  {
+    key: "size",
+    label: "How big should they get?",
+    hint: "Mature height, so nothing outgrows the spot you have.",
+    options: [
+      { value: "any", label: "Any size" },
+      { value: "small", label: "Low · under 2 ft" },
+      { value: "medium", label: "Mid · 2–6 ft" },
+      { value: "large", label: "Tall · over 6 ft" },
+    ],
+  },
+  {
+    key: "flowering",
+    label: "Do you want flowers?",
+    options: [
+      { value: "any", label: "Doesn't matter" },
+      { value: "yes", label: "Yes — blooms please" },
+      { value: "no", label: "Foliage only" },
+    ],
+  },
+  {
+    key: "sun",
+    label: "How much sun does the spot get?",
+    options: [
+      { value: "any", label: "Not sure" },
+      { value: "full", label: "Full sun · 6+ hrs" },
+      { value: "part", label: "Part sun · 3–6 hrs" },
+      { value: "shade", label: "Shade · under 3 hrs" },
+    ],
+  },
+  {
+    key: "water",
+    label: "How much watering are you up for?",
+    options: [
+      { value: "any", label: "Happy to water" },
+      { value: "low", label: "Low-water only" },
+    ],
+  },
+];
+
+const DEFAULT_PREFS = {
+  types: [],
+  life: "any",
+  size: "any",
+  flowering: "any",
+  sun: "any",
+  water: "any",
+};
+
+// Little badges under each plant name, so a recommendation explains itself.
+const SIZE_LABEL = { small: "under 2 ft", medium: "2–6 ft", large: "over 6 ft" };
+const SUN_LABEL = { full: "full sun", part: "part sun", shade: "shade" };
+const WATER_LABEL = { low: "low water", medium: "avg water", high: "thirsty" };
+
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [location, setLocation] = useState("");
+  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [plans, setPlans] = useState([]);
@@ -154,6 +239,23 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Multi-select groups accumulate; single-choice groups replace, and
+  // re-tapping the current choice clears it back to "no preference".
+  const togglePref = (q, value) => {
+    setPrefs((p) => {
+      if (q.multi) {
+        const has = p[q.key].includes(value);
+        return {
+          ...p,
+          [q.key]: has
+            ? p[q.key].filter((v) => v !== value)
+            : [...p[q.key], value],
+        };
+      }
+      return { ...p, [q.key]: p[q.key] === value ? "any" : value };
+    });
+  };
+
   const generate = async (e) => {
     e.preventDefault();
     if (!location.trim()) return;
@@ -163,7 +265,7 @@ export default function Dashboard() {
       // Calls the Supabase Edge Function, which uses Firecrawl server-side
       // to pull address-specific growing data, then saves it to the DB.
       const { data, error } = await supabase.functions.invoke("planting-plan", {
-        body: { location: location.trim() },
+        body: { location: location.trim(), preferences: prefs },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -223,19 +325,28 @@ export default function Dashboard() {
           <p>
             Enter your address or city. We pull live growing data for your exact
             location — hardiness zone, frost dates, and a planting calendar — not
-            a generic zip-code guess.
+            a generic zip-code guess. Answer a few questions and we'll narrow the
+            plant list to what you actually want to grow.
           </p>
           <form className="dash-form" onSubmit={generate}>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
-              aria-label="Your address or city"
+            <div className="dash-form-row">
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
+                aria-label="Your address or city"
+              />
+              <button type="submit" disabled={busy}>
+                {busy ? "Building your plan…" : "Get my plan"}
+              </button>
+            </div>
+
+            <GardenPrefs
+              prefs={prefs}
+              onToggle={togglePref}
+              onReset={() => setPrefs(DEFAULT_PREFS)}
             />
-            <button type="submit" disabled={busy}>
-              {busy ? "Building your plan…" : "Get my plan"}
-            </button>
           </form>
           {busy && (
             <p className="dash-hint">
@@ -338,7 +449,49 @@ export default function Dashboard() {
   );
 }
 
-function PlanCard({ plan }) {
+// The questions that shape the plant list, as a chip-toggle panel.
+export function GardenPrefs({ prefs, onToggle, onReset }) {
+  return (
+    <fieldset className="prefs">
+      <legend>Tell us about your garden</legend>
+      {QUESTIONS.map((q) => (
+        <div className="pref-q" key={q.key}>
+          <span className="pref-label" id={`pref-${q.key}`}>
+            {q.label}
+          </span>
+          {q.hint && <span className="pref-hint">{q.hint}</span>}
+          <div
+            className="pref-opts"
+            role="group"
+            aria-labelledby={`pref-${q.key}`}
+          >
+            {q.options.map((o) => {
+              const on = q.multi
+                ? prefs.types.includes(o.value)
+                : prefs[q.key] === o.value;
+              return (
+                <button
+                  type="button"
+                  key={o.value}
+                  className={`pref-chip ${on ? "on" : ""}`}
+                  aria-pressed={on}
+                  onClick={() => onToggle(q, o.value)}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <button type="button" className="pref-reset" onClick={onReset}>
+        Reset answers
+      </button>
+    </fieldset>
+  );
+}
+
+export function PlanCard({ plan }) {
   return (
     <section className="plan-card">
       <div className="plan-head">
@@ -374,11 +527,24 @@ function PlanCard({ plan }) {
               <li key={i}>
                 <strong>{r.name}</strong>
                 {r.why ? <span> — {r.why}</span> : null}
+                {/* Plans saved before the catalog upgrade have no tags. */}
+                {r.life && (
+                  <div className="plan-tags">
+                    <em>{r.life}</em>
+                    {r.type && <em>{r.type}</em>}
+                    {SIZE_LABEL[r.size] && <em>{SIZE_LABEL[r.size]}</em>}
+                    {SUN_LABEL[r.sun] && <em>{SUN_LABEL[r.sun]}</em>}
+                    {WATER_LABEL[r.water] && <em>{WATER_LABEL[r.water]}</em>}
+                    {r.flowering && <em className="bloom">flowering</em>}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         </div>
       )}
+
+      <NurseryList plan={plan} />
 
       {Array.isArray(plan.sources) && plan.sources.length > 0 && (
         <div className="plan-sources">
@@ -395,5 +561,60 @@ function PlanCard({ plan }) {
         </div>
       )}
     </section>
+  );
+}
+
+// Garden centers near the address, so the plan ends somewhere you can drive to.
+function NurseryList({ plan }) {
+  const nurseries = Array.isArray(plan.nurseries) ? plan.nurseries : [];
+  const searchUrl =
+    plan.nursery_search_url ||
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      `garden nursery near ${plan.location}`
+    )}`;
+
+  return (
+    <div className="plan-nurseries">
+      <h3>Where to buy these nearby</h3>
+      {nurseries.length > 0 ? (
+        <>
+          <ul>
+            {nurseries.map((n, i) => (
+              <li key={i}>
+                <div className="nursery-head">
+                  <strong>{n.name}</strong>
+                  <span className="nursery-miles">{n.miles} mi</span>
+                </div>
+                {n.address && <div className="nursery-addr">{n.address}</div>}
+                <div className="nursery-links">
+                  <a href={n.map_url} target="_blank" rel="noreferrer">
+                    Directions
+                  </a>
+                  {n.phone && <a href={`tel:${n.phone}`}>{n.phone}</a>}
+                  {n.website && (
+                    <a href={n.website} target="_blank" rel="noreferrer">
+                      Website
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="nursery-note">
+            Garden centers within 30 miles, from OpenStreetMap.{" "}
+            <a href={searchUrl} target="_blank" rel="noreferrer">
+              See more on Google Maps
+            </a>
+          </p>
+        </>
+      ) : (
+        <p className="nursery-note">
+          We couldn't find a mapped garden center within 30 miles of here.{" "}
+          <a href={searchUrl} target="_blank" rel="noreferrer">
+            Search nurseries near you on Google Maps
+          </a>
+        </p>
+      )}
+    </div>
   );
 }

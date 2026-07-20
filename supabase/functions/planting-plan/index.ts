@@ -5,10 +5,15 @@
 //     with Firecrawl text extraction only as a last-resort fallback.
 //   • Frost dates + planting calendar + cited sources: live web data via
 //     Firecrawl, restricted to pages that actually mention the user's city.
+//   • Plant picks: the catalog in plants.ts, filtered to the zone and to the
+//     gardener's answers (annual/perennial, size, flowering, sun, water).
+//   • Nearby nurseries to actually buy the plants from (OpenStreetMap).
 // The plan is saved to the database for the signed-in user (RLS-owned).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { matchPlants, type Preferences } from "./plants.ts";
+import { findNurseries, nurserySearchUrl } from "./nurseries.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -38,89 +43,73 @@ const fetchJson = async (url: string, ms = 8000): Promise<any | null> => {
   }
 };
 
-// Curated, horticulturally-sound plant picks per USDA zone.
-const ZONE_PLANTS: Record<string, { name: string; why: string }[]> = {
-  "3": [
-    { name: "Siberian Iris", why: "Cold-hardy perennial that shrugs off deep freezes." },
-    { name: "Kale", why: "Thrives in short, cool seasons and tolerates frost." },
-    { name: "Serviceberry", why: "Native shrub built for harsh northern winters." },
-  ],
-  "4": [
-    { name: "Peony", why: "Needs a hard winter chill to bloom — perfect here." },
-    { name: "Spinach", why: "Fast, cool-season crop for a short growing window." },
-    { name: "Lilac", why: "Classic cold-climate shrub with reliable spring bloom." },
-  ],
-  "5": [
-    { name: "Coneflower (Echinacea)", why: "Drought-tolerant native perennial." },
-    { name: "Tomatoes (early varieties)", why: "Fit the season if started indoors." },
-    { name: "Hostas", why: "Shade-loving and fully winter-hardy here." },
-  ],
-  "6": [
-    { name: "Lavender", why: "Loves the balanced season and well-drained soil." },
-    { name: "Peppers", why: "Warm enough summers to ripen fully." },
-    { name: "Black-eyed Susan", why: "Tough native that reseeds happily." },
-  ],
-  "7": [
-    { name: "Crepe Myrtle", why: "Long, warm season lets it flower for months." },
-    { name: "Okra", why: "Heat-lover that flourishes in your summers." },
-    { name: "Camellia", why: "Mild winters let this evergreen bloom outdoors." },
-  ],
-  "8": [
-    { name: "Rosemary", why: "Overwinters outdoors in your mild climate." },
-    { name: "Sweet Potatoes", why: "Long warm season suits this heat crop." },
-    { name: "Gardenia", why: "Fragrant evergreen that loves the warmth." },
-  ],
-  "9": [
-    { name: "Citrus (dwarf Meyer lemon)", why: "Rarely-freezing winters keep it safe." },
-    { name: "Bougainvillea", why: "Thrives in heat and abundant sun." },
-    { name: "Peppers & Eggplant", why: "Very long season for heat-loving crops." },
-  ],
-  "10": [
-    { name: "Hibiscus", why: "Tropical color that never sees a killing frost." },
-    { name: "Avocado", why: "Warm year-round climate supports fruiting." },
-    { name: "Bird of Paradise", why: "Frost-free winters let it flower repeatedly." },
-  ],
-  "11": [
-    { name: "Plumeria", why: "True tropical that needs frost-free warmth." },
-    { name: "Mango", why: "Heat and humidity suit this tropical fruit." },
-    { name: "Bananas", why: "Year-round warmth lets clumps mature." },
-  ],
-};
+// --- Deterministic place lookup: input → coordinates + ZIP → USDA zone -----
+// The coordinates matter beyond the zone: they're what the nursery search
+// measures distance from.
+type Place = { zone: string; zip: string; lat: number | null; lon: number | null };
 
-const genericPlants = [
-  { name: "Native wildflower mix", why: "Adapted to local conditions and pollinator-friendly." },
-  { name: "Leaf lettuce", why: "Forgiving cool-season crop for most regions." },
-  { name: "Marigolds", why: "Easy annual that deters common garden pests." },
-];
+async function lookupPlace(location: string): Promise<Place> {
+  const place: Place = { zone: "", zip: "", lat: null, lon: null };
 
-// --- Deterministic zone lookup: input → ZIP → official USDA zone -----------
-async function lookupZone(
-  location: string
-): Promise<{ zone: string; zip: string } | null> {
-  // 1. If the input already contains a US ZIP, use it directly.
-  let zip = location.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1];
+  // A ZIP typed straight into the box is more trustworthy than a geocode.
+  place.zip = location.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] ?? "";
 
-  // 2. Otherwise geocode the location and take (or reverse-derive) a ZIP.
-  if (!zip) {
-    const results = await fetchJson(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1&countrycodes=us`
-    );
-    const hit = Array.isArray(results) ? results[0] : null;
-    if (!hit) return null;
-    zip = hit.address?.postcode?.match(/\d{5}/)?.[0];
-    if (!zip && hit.lat && hit.lon) {
-      const rev = await fetchJson(
-        `https://nominatim.openstreetmap.org/reverse?lat=${hit.lat}&lon=${hit.lon}&format=json`
-      );
-      zip = rev?.address?.postcode?.match(/\d{5}/)?.[0];
+  // Geocode regardless — we need lat/lon for the nursery search, and the
+  // result also supplies the ZIP when the user typed a city name.
+  const results = await fetchJson(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1&countrycodes=us`
+  );
+  const hit = Array.isArray(results) ? results[0] : null;
+  if (hit) {
+    const lat = Number(hit.lat);
+    const lon = Number(hit.lon);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      place.lat = lat;
+      place.lon = lon;
+    }
+    if (!place.zip) {
+      place.zip = hit.address?.postcode?.match(/\d{5}/)?.[0] ?? "";
+      // A city-level hit often has no postcode; reverse-geocode its center.
+      if (!place.zip && place.lat !== null) {
+        const rev = await fetchJson(
+          `https://nominatim.openstreetmap.org/reverse?lat=${place.lat}&lon=${place.lon}&format=json`
+        );
+        place.zip = rev?.address?.postcode?.match(/\d{5}/)?.[0] ?? "";
+      }
     }
   }
-  if (!zip) return null;
 
-  // 3. ZIP → USDA hardiness zone (2023 map) via phzmapi.
-  const phz = await fetchJson(`https://phzmapi.org/${zip}.json`);
-  const zone = typeof phz?.zone === "string" ? phz.zone.toLowerCase() : "";
-  return /^(1[0-3]|[1-9])[ab]?$/.test(zone) ? { zone, zip } : null;
+  // ZIP → USDA hardiness zone (2023 map) via phzmapi.
+  if (place.zip) {
+    const phz = await fetchJson(`https://phzmapi.org/${place.zip}.json`);
+    const zone = typeof phz?.zone === "string" ? phz.zone.toLowerCase() : "";
+    if (/^(1[0-3]|[1-9])[ab]?$/.test(zone)) place.zone = zone;
+  }
+
+  return place;
+}
+
+// Only keep the shapes the catalog matcher understands; anything else the
+// client sends is dropped rather than trusted.
+const PLANT_TYPES = [
+  "vegetable", "fruit", "herb", "flower", "shrub", "tree", "vine", "grass", "groundcover",
+];
+const oneOf = <T extends string>(v: unknown, allowed: T[]): T | undefined =>
+  typeof v === "string" && (allowed as string[]).includes(v) ? (v as T) : undefined;
+
+function sanitizePreferences(raw: unknown): Preferences {
+  const p = (raw ?? {}) as Record<string, unknown>;
+  const types = Array.isArray(p.types)
+    ? p.types.filter((t): t is string => typeof t === "string" && PLANT_TYPES.includes(t))
+    : [];
+  return {
+    types: types as Preferences["types"],
+    life: oneOf(p.life, ["any", "annual", "perennial"] as const),
+    size: oneOf(p.size, ["any", "small", "medium", "large"] as const),
+    flowering: oneOf(p.flowering, ["any", "yes", "no"] as const),
+    sun: oneOf(p.sun, ["any", "full", "part", "shade"] as const),
+    water: oneOf(p.water, ["any", "low"] as const),
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -148,10 +137,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Server is missing FIRECRAWL_API_KEY." }, 500);
     }
 
-    const { location } = await req.json().catch(() => ({}));
+    const { location, preferences: rawPrefs } = await req
+      .json()
+      .catch(() => ({}));
     if (!location || typeof location !== "string") {
       return json({ error: "Please provide a location." }, 400);
     }
+    const preferences = sanitizePreferences(rawPrefs);
 
     // --- Identify the signed-in user (RLS-scoped client) ---
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -170,8 +162,17 @@ Deno.serve(async (req: Request) => {
       `${location} USDA plant hardiness zone, average last spring frost and ` +
       `first fall frost dates, and vegetable planting calendar`;
 
-    const [zoneLookup, fcRes] = await Promise.all([
-      lookupZone(location),
+    // The nursery search needs the geocode, but nothing else does — chain it
+    // off the place lookup so it runs while Firecrawl is still working.
+    const placePromise = lookupPlace(location);
+    const nurseriesPromise = placePromise
+      .then((p) =>
+        p.lat !== null && p.lon !== null ? findNurseries(p.lat, p.lon) : []
+      )
+      .catch(() => []);
+
+    const [place, fcRes] = await Promise.all([
+      placePromise,
       fetch("https://api.firecrawl.dev/v2/search", {
         method: "POST",
         headers: {
@@ -224,7 +225,7 @@ Deno.serve(async (req: Request) => {
       .slice(0, 60000);
 
     // --- Zone: official USDA data first, scoped text second ---
-    let zone = zoneLookup?.zone ?? "";
+    let zone = place.zone;
     let zoneSource: "usda" | "scraped" | "" = zone ? "usda" : "";
     if (!zone && corpus) {
       const zoneCounts: Record<string, number> = {};
@@ -262,11 +263,18 @@ Deno.serve(async (req: Request) => {
       new RegExp(`first\\s+(?:fall\\s+|autumn\\s+)?frost[^.]{0,60}?(${fallMonths}\\s+\\d{1,2})`, "i")
     );
 
-    const recommendations = ZONE_PLANTS[zoneNum] ?? genericPlants;
+    // --- Plant picks: zone-safe first, then narrowed by the user's answers ---
+    const { plants: recommendations, relaxed } = matchPlants(
+      zoneNum ? Number(zoneNum) : null,
+      preferences
+    );
+
+    // --- Where to actually buy them (started before the Firecrawl parse) ---
+    const nurseries = await nurseriesPromise;
 
     const zonePhrase =
       zoneSource === "usda"
-        ? `your USDA hardiness zone is ${zone} (official USDA 2023 map${zoneLookup?.zip ? `, ZIP ${zoneLookup.zip}` : ""})`
+        ? `your USDA hardiness zone is ${zone} (official USDA 2023 map${place.zip ? `, ZIP ${place.zip}` : ""})`
         : zone
           ? `your USDA hardiness zone appears to be ${zone} (from the sources below)`
           : `your USDA hardiness zone is not clearly listed in the sources below`;
@@ -276,11 +284,15 @@ Deno.serve(async (req: Request) => {
       (zoneNum && Number(zoneNum) >= 10
         ? `Frost is rare to nonexistent in your zone — you can grow nearly ` +
           `year-round, with summer heat (not cold) as the main constraint. ` +
-          `The plants below are matched to your zone.`
+          `The plants below are matched to your zone and your answers.`
         : `Use the frost dates to time planting: start cool-season crops a few ` +
           `weeks before the last spring frost, and warm-season crops after it. ` +
-          `The plants below are matched to your zone so they can actually ` +
-          `survive your winters and ripen in your summers.`);
+          `The plants below are matched to your zone and your answers, so they ` +
+          `can actually survive your winters and ripen in your summers.`) +
+      (relaxed.length
+        ? ` Not many plants fit every answer here, so we widened the search on ` +
+          `${relaxed.join(" and ")}.`
+        : "");
 
     const sources = [
       ...(zoneSource === "usda"
@@ -306,6 +318,10 @@ Deno.serve(async (req: Request) => {
         lastFrost && firstFrost ? `${lastFrost} → ${firstFrost}` : "",
       summary,
       recommendations,
+      preferences,
+      relaxed,
+      nurseries,
+      nursery_search_url: nurserySearchUrl(location),
       sources,
     };
 

@@ -176,12 +176,12 @@
   margin: 0 0 1.5rem;
   line-height: 1.6;
 }
-.dash-form {
+.dash-form-row {
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
 }
-.dash-form input {
+.dash-form-row input {
   flex: 1 1 320px;
   padding: 0.85rem 1rem;
   border: 1.5px solid #d7e4da;
@@ -189,11 +189,11 @@
   font-size: 1rem;
   font-family: inherit;
 }
-.dash-form input:focus {
+.dash-form-row input:focus {
   outline: none;
   border-color: var(--canopy, #40916c);
 }
-.dash-form button {
+.dash-form-row button {
   padding: 0.85rem 1.4rem;
   border: none;
   border-radius: 0.5rem;
@@ -204,10 +204,10 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.dash-form button:hover:not(:disabled) {
+.dash-form-row button:hover:not(:disabled) {
   background: var(--canopy, #40916c);
 }
-.dash-form button:disabled {
+.dash-form-row button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -223,6 +223,71 @@
   background: #fdeceb;
   color: #c1121f;
   font-size: 0.9rem;
+}
+
+/* ---------- Garden preference questions ---------- */
+.prefs {
+  margin: 1.5rem 0 0;
+  border: 1px solid #e3ede6;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 1.25rem 1.4rem 1.4rem;
+}
+.prefs legend {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  font-size: 1.05rem;
+  color: var(--deep-grove, #2d6a4f);
+  padding: 0 0.5rem;
+}
+.pref-q + .pref-q {
+  margin-top: 1.15rem;
+}
+.pref-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.pref-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--slate-moss, #5a6b5e);
+  margin-top: 0.15rem;
+}
+.pref-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+.pref-chip {
+  padding: 0.42rem 0.8rem;
+  border: 1.5px solid #d7e4da;
+  border-radius: 9999px;
+  background: #fff;
+  color: var(--deep-soil, #1a2e1f);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.pref-chip:hover {
+  border-color: var(--canopy, #40916c);
+}
+.pref-chip.on {
+  background: var(--deep-grove, #2d6a4f);
+  border-color: var(--deep-grove, #2d6a4f);
+  color: #fff;
+}
+.pref-reset {
+  margin-top: 1.25rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--canopy, #40916c);
+  cursor: pointer;
 }
 
 /* ---------- Plan card ---------- */
@@ -310,6 +375,88 @@
   border-radius: 0.4rem;
   line-height: 1.5;
 }
+.plan-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.plan-tags em {
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  padding: 0.16rem 0.5rem;
+  border-radius: 9999px;
+  background: #e7f0ea;
+  color: var(--deep-grove, #2d6a4f);
+}
+.plan-tags em.bloom {
+  background: var(--morning-dew, #b7e4c7);
+}
+
+/* ---------- Nearby nurseries ---------- */
+.plan-nurseries {
+  margin-top: 1.75rem;
+}
+.plan-nurseries h3 {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  margin: 0 0 0.75rem;
+}
+.plan-nurseries ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.7rem;
+}
+.plan-nurseries li {
+  padding: 0.8rem 1rem;
+  background: var(--fog, #f7faf8);
+  border: 1px solid #e6efe9;
+  border-radius: 0.6rem;
+}
+.nursery-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.nursery-miles {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--canopy, #40916c);
+}
+.nursery-addr {
+  font-size: 0.82rem;
+  color: var(--slate-moss, #5a6b5e);
+  margin-top: 0.2rem;
+  line-height: 1.4;
+}
+.nursery-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.nursery-links a {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--canopy, #40916c);
+}
+.nursery-note {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--slate-moss, #5a6b5e);
+  line-height: 1.5;
+}
+.nursery-note a {
+  color: var(--canopy, #40916c);
+  font-weight: 600;
+}
+
 .plan-sources {
   margin-top: 1.75rem;
   border-top: 1px solid #eef4f0;
