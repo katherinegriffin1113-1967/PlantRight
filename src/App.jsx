@@ -687,25 +687,32 @@ function RoiCalculator() {
 /* ================================================================== */
 const testimonials = [
   {
-    name: "Margaret K.",
-    loc: "Raleigh, NC",
-    initials: "MK",
+    name: "Lisa",
+    loc: "Mount Pleasant, SC",
+    initials: "LM",
     story:
       "Twelve years of gardening and this was the first time I actually understood my own beds. It wasn’t me. It was information.",
   },
   {
-    name: "Jen T.",
-    loc: "Charlotte, NC",
-    initials: "JT",
+    name: "Kim",
+    loc: "Orlando, FL",
+    initials: "KO",
     story:
       "I refused to hire someone. I wanted to figure it out myself — and for the first time, I finally did.",
   },
   {
-    name: "Carol A.",
-    loc: "Savannah, GA",
-    initials: "CA",
+    name: "David",
+    loc: "West Palm Beach, FL",
+    initials: "DW",
     story:
       "I’d been photographing gardens on vacation for years. I finally recreated one of them in my own backyard.",
+  },
+  {
+    name: "Caeleigh",
+    loc: "Richmond, VA",
+    initials: "CR",
+    story:
+      "I stopped guessing and planted exactly what the plan said would work in my shade — and every bit of it took.",
   },
 ];
 

@@ -1,21 +1,39 @@
 # PlantRight — session handoff
 
-Everything a fresh Claude Code session needs to pick this project up. Written
-2026-07-20, immediately after the plant-catalog + nursery release.
+Everything a fresh Claude Code session needs to pick this project up. First
+written 2026-07-20 after the plant-catalog + nursery release; last updated
+2026-07-21 after the plant-photos + gardener-features release.
 
 ## Current state: done and shipped
 
 The app is feature-complete for the assignment and **live at
 https://plantright.net**. Nothing is half-finished, and there is no work in
-progress. The last change (commit `2dd7b30`) is committed, pushed to GitHub,
-deployed to Netlify, and the Edge Function is deployed as version 8.
+progress. The last change (commit `0cf59a3`) is committed, pushed to GitHub,
+deployed to Netlify, and the Edge Function is deployed as **version 9**.
 
-**The one thing not verified:** nobody has done a signed-in, end-to-end click
-through the live app since the last release. Claude does not enter passwords
-into login forms, so the dashboard was verified by rendering its components
-against fixture data instead. Katherine should sign in once, generate a real
-plan, and confirm the questions, plant list, and nursery section all behave
-before submitting to her professor.
+**Shipped since the original release (all live + committed + pushed):**
+
+- **Clickable plant photos** — each recommended plant opens a detail modal with
+  a photo + short description from Wikipedia's REST summary endpoint
+  (`src/lib/plantPhotos.js`, `src/pages/PlantPhotoModal.jsx`).
+- **Form reorder** — the dashboard asks the garden questions first, then the
+  address + "Get my plan" button.
+- **Planting calendar, care, and companions** — the same detail modal shows
+  when to plant (timed to the plan's frost dates), spacing/sun/water care, and
+  companion-planting notes. All computed client-side in `src/lib/plantData.js`.
+- **Shopping list** — checkboxes on each plant build a nursery-ready print view.
+- **Re-run + pre-fill** — reload a saved plan's answers into the form; the last
+  answers persist in `localStorage`.
+- **Pollinator filter** — a seventh garden question. Its definition lives in
+  BOTH `plants.ts` (`isPollinator`, the matcher) and `plantData.js`
+  (`isPollinatorFriendly`, the badge) — keep those two in sync.
+
+**The one thing still not verified:** nobody has done a signed-in, end-to-end
+click through the live app. Claude does not enter passwords into login forms,
+so the dashboard is verified by rendering its components against fixture data
+instead (a throwaway `src/pages/__preview.jsx` route, removed before each
+commit). Katherine should sign in once, generate a real plan, and confirm the
+questions, plant list, photos, calendar, and pollinator filter all behave.
 
 ## Where everything is
 
@@ -30,9 +48,10 @@ before submitting to her professor.
 
 ## What the app does
 
-A homeowner enters an address, answers six questions about their garden, and
+A homeowner enters an address, answers seven questions about their garden, and
 gets back a plan: USDA hardiness zone, frost dates, a list of plants matched to
-both the zone and their answers, and nearby garden centers to buy them from.
+both the zone and their answers (each openable for a photo, planting calendar,
+care, and companions), and nearby garden centers to buy them from.
 
 The assignment required a landing page, Firecrawl, a connected database, and
 login/auth. All four are in place — see the table in `README.md`.
@@ -47,6 +66,12 @@ login/auth. All four are in place — see the table in `README.md`.
   the `GardenPrefs` question panel, `PlanCard`, and `NurseryList`.
   `GardenPrefs` and `PlanCard` are exported so they can be rendered in
   isolation for testing.
+- `src/pages/PlantPhotoModal.jsx` — the per-plant detail modal (photo,
+  description, planting calendar, care, companions).
+- `src/lib/plantPhotos.js` — plant name → Wikipedia photo/description. Holds a
+  verified name→article-title map for all 120 catalog plants.
+- `src/lib/plantData.js` — client-side planting calendar, companion, care, and
+  pollinator logic derived from each plan's tags + frost dates.
 - `src/pages/app.css` — dashboard + auth styles (tokens come from `index.css`)
 
 **Backend** — one Supabase Edge Function, `supabase/functions/planting-plan/`:
@@ -153,10 +178,16 @@ Supabase's Deno runtime. A gateway error or 500 would mean a boot failure.
 
 ## Possible next steps
 
-None are required; the assignment is complete.
+None are required; the assignment is complete. Re-run/pre-fill, the per-plant
+planting window, and edit-and-re-run all shipped in the 2026-07-21 release.
 
-- Let users edit or re-run a saved plan with different answers
-- Persist the last-used answers so they're pre-filled next time
-- Show a per-plant planting window derived from the frost dates
+- **Frost/weather alerts** — "frost tonight, cover your plants" for a saved
+  location. Needs a weather API + an email service (Supabase can't send
+  arbitrary email on its own) + a scheduled job. The biggest of the ideas.
+- **Garden journal** — log plantings + photos across seasons. Needs a new table
+  + Supabase Storage for images.
+- **Garden bed layout planner** — drag plants into a spacing-aware bed grid.
+- **Native-plant filter** — pollinator shipped; "native to your region" is the
+  harder, region-specific data still to do.
 - Add nursery opening hours (OSM has them; Nominatim's `extratags` are often
   null, so this likely means a second data source)
