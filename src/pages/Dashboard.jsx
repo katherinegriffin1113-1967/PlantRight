@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthContext";
+import PlantPhotoModal from "./PlantPhotoModal";
 import "./app.css";
 
 const TIERS = [
@@ -323,12 +324,18 @@ export default function Dashboard() {
         <section className="dash-hero">
           <h1>Your address-specific plant plan</h1>
           <p>
-            Enter your address or city. We pull live growing data for your exact
-            location — hardiness zone, frost dates, and a planting calendar — not
-            a generic zip-code guess. Answer a few questions and we'll narrow the
-            plant list to what you actually want to grow.
+            First tell us what you want to grow. Then enter your address or city
+            and we'll pull live growing data for your exact location — hardiness
+            zone, frost dates, and a planting calendar, not a generic zip-code
+            guess — and narrow the plant list to what you actually want to grow.
           </p>
           <form className="dash-form" onSubmit={generate}>
+            <GardenPrefs
+              prefs={prefs}
+              onToggle={togglePref}
+              onReset={() => setPrefs(DEFAULT_PREFS)}
+            />
+
             <div className="dash-form-row">
               <input
                 type="text"
@@ -341,12 +348,6 @@ export default function Dashboard() {
                 {busy ? "Building your plan…" : "Get my plan"}
               </button>
             </div>
-
-            <GardenPrefs
-              prefs={prefs}
-              onToggle={togglePref}
-              onReset={() => setPrefs(DEFAULT_PREFS)}
-            />
           </form>
           {busy && (
             <p className="dash-hint">
@@ -492,6 +493,9 @@ export function GardenPrefs({ prefs, onToggle, onReset }) {
 }
 
 export function PlanCard({ plan }) {
+  // The plant whose photo is open, if any.
+  const [preview, setPreview] = useState(null);
+
   return (
     <section className="plan-card">
       <div className="plan-head">
@@ -522,26 +526,47 @@ export function PlanCard({ plan }) {
       {Array.isArray(plan.recommendations) && plan.recommendations.length > 0 && (
         <div className="plan-recs">
           <h3>What will thrive here</h3>
+          <p className="plan-recs-hint">Tap any plant to see what it looks like.</p>
           <ul>
             {plan.recommendations.map((r, i) => (
               <li key={i}>
-                <strong>{r.name}</strong>
-                {r.why ? <span> — {r.why}</span> : null}
-                {/* Plans saved before the catalog upgrade have no tags. */}
-                {r.life && (
-                  <div className="plan-tags">
-                    <em>{r.life}</em>
-                    {r.type && <em>{r.type}</em>}
-                    {SIZE_LABEL[r.size] && <em>{SIZE_LABEL[r.size]}</em>}
-                    {SUN_LABEL[r.sun] && <em>{SUN_LABEL[r.sun]}</em>}
-                    {WATER_LABEL[r.water] && <em>{WATER_LABEL[r.water]}</em>}
-                    {r.flowering && <em className="bloom">flowering</em>}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="plan-rec"
+                  onClick={() => setPreview(r)}
+                  aria-label={`See a photo of ${r.name}`}
+                >
+                  <span className="plan-rec-text">
+                    <strong>{r.name}</strong>
+                    {r.why ? <span> — {r.why}</span> : null}
+                    {/* Plans saved before the catalog upgrade have no tags. */}
+                    {r.life && (
+                      <span className="plan-tags">
+                        <em>{r.life}</em>
+                        {r.type && <em>{r.type}</em>}
+                        {SIZE_LABEL[r.size] && <em>{SIZE_LABEL[r.size]}</em>}
+                        {SUN_LABEL[r.sun] && <em>{SUN_LABEL[r.sun]}</em>}
+                        {WATER_LABEL[r.water] && <em>{WATER_LABEL[r.water]}</em>}
+                        {r.flowering && <em className="bloom">flowering</em>}
+                      </span>
+                    )}
+                  </span>
+                  <span className="plan-rec-photo" aria-hidden="true">
+                    📷
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         </div>
+      )}
+
+      {preview && (
+        <PlantPhotoModal
+          key={preview.name}
+          plant={preview}
+          onClose={() => setPreview(null)}
+        />
       )}
 
       <NurseryList plan={plan} />
