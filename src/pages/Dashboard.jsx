@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthContext";
 import PlantPhotoModal from "./PlantPhotoModal";
+import YardView from "./YardView";
 import "./app.css";
 
 const TIERS = [
@@ -587,6 +588,8 @@ export function PlanCard({ plan, onReuse }) {
       </div>
 
       {plan.summary && <p className="plan-summary">{plan.summary}</p>}
+
+      <YardView key={plan.location} plan={plan} />
 
       {recs.length > 0 && (
         <div className="plan-recs">

@@ -459,6 +459,49 @@
   background: var(--morning-dew, #b7e4c7);
 }
 
+/* ---------- Overhead satellite view ---------- */
+.yard-view {
+  margin: 1.5rem 0 0;
+}
+.yard-view-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 640 / 420;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: var(--fog, #f7faf8);
+}
+.yard-view-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.yard-view-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #eef3ef 25%, #e2ebe5 50%, #eef3ef 75%);
+  background-size: 200% 100%;
+  animation: plant-modal-shimmer 1.2s linear infinite;
+}
+.yard-view-cap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: var(--slate-moss, #5a6b5e);
+}
+.yard-view-attr a {
+  color: var(--slate-moss, #5a6b5e);
+}
+@media (prefers-reduced-motion: reduce) {
+  .yard-view-skeleton {
+    animation: none;
+  }
+}
+
 /* ---------- Shopping list ---------- */
 .plan-shop-bar {
   display: flex;
