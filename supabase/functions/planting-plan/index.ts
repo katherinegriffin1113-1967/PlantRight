@@ -109,6 +109,7 @@ function sanitizePreferences(raw: unknown): Preferences {
     flowering: oneOf(p.flowering, ["any", "yes", "no"] as const),
     sun: oneOf(p.sun, ["any", "full", "part", "shade"] as const),
     water: oneOf(p.water, ["any", "low"] as const),
+    pollinator: oneOf(p.pollinator, ["any", "yes"] as const),
   };
 }
 

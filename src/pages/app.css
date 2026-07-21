@@ -378,18 +378,40 @@
   color: var(--slate-moss, #5a6b5e);
 }
 .plan-recs li {
+  display: flex;
+  align-items: stretch;
   background: var(--fog, #f7faf8);
   border-left: 3px solid var(--new-growth, #74c69d);
   border-radius: 0.4rem;
   line-height: 1.5;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.plan-recs li.picked {
+  background: #eaf4ee;
+  border-left-color: var(--deep-grove, #2d6a4f);
+}
+/* The shopping-list checkbox, kept separate from the photo button so we
+   never nest one button inside another. */
+.plan-rec-pick {
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem 0 0.7rem;
+  cursor: pointer;
+}
+.plan-rec-pick input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--deep-grove, #2d6a4f);
+  cursor: pointer;
 }
 /* Each recommendation is a button that opens its photo. */
 .plan-rec {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.75rem 1rem 0.75rem 0.4rem;
   background: none;
   border: 0;
   border-radius: 0.4rem;
@@ -435,6 +457,73 @@
 }
 .plan-tags em.bloom {
   background: var(--morning-dew, #b7e4c7);
+}
+
+/* ---------- Shopping list ---------- */
+.plan-shop-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.7rem 0.9rem;
+  background: #eaf4ee;
+  border: 1px solid #cfe6d8;
+  border-radius: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--deep-grove, #2d6a4f);
+}
+.plan-shop-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.plan-shop-actions button {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: var(--deep-grove, #2d6a4f);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.plan-shop-actions button:hover {
+  background: var(--canopy, #40916c);
+}
+.plan-shop-actions .link-btn {
+  background: none;
+  color: var(--slate-moss, #5a6b5e);
+  padding: 0.5rem 0.2rem;
+}
+.plan-shop-actions .link-btn:hover {
+  background: none;
+  color: var(--error, #c1121f);
+}
+
+/* ---------- Re-run these answers ---------- */
+.plan-reuse {
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #cfe6d8;
+  border-radius: 9999px;
+  background: #fff;
+  color: var(--deep-grove, #2d6a4f);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.plan-reuse:hover {
+  background: #eaf4ee;
+}
+
+/* The print-only shopping list is hidden on screen. */
+.plan-print {
+  display: none;
 }
 
 /* ---------- "What does it look like?" photo modal ---------- */
@@ -523,10 +612,72 @@
 .plant-modal-body {
   padding: 1.1rem 1.25rem 1.35rem;
 }
+.plant-modal-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.4rem;
+}
 .plant-modal-body h3 {
-  margin: 0 0 0.4rem;
+  margin: 0;
   font-family: var(--font-display, "DM Serif Display", serif);
   font-size: 1.35rem;
+}
+.plant-modal-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.16rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--morning-dew, #b7e4c7);
+  color: var(--deep-grove, #2d6a4f);
+  white-space: nowrap;
+}
+
+/* Plant detail sections — planting calendar, care, companions. */
+.plant-detail {
+  margin-top: 1.1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #eef3ef;
+}
+.plant-detail h4 {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+  color: var(--deep-grove, #2d6a4f);
+}
+.plant-detail-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.plant-detail-steps li {
+  display: grid;
+  gap: 0.1rem;
+}
+.plant-detail-steps .step-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-moss, #5a6b5e);
+}
+.plant-detail-steps .step-value {
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.plant-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.plant-detail-list strong {
+  color: var(--deep-grove, #2d6a4f);
 }
 .plant-modal-why {
   margin: 0 0 0.75rem;
@@ -844,5 +995,49 @@
   }
   .dash-email {
     display: none;
+  }
+}
+
+/* ---------- Print: show only the shopping list ---------- */
+@media print {
+  body {
+    background: #fff;
+  }
+  /* Hide the whole app, then reveal just the print block(s). */
+  .dash-nav,
+  .dash-hero,
+  .dash-banner,
+  .dash-saved,
+  .dash-upgrade,
+  .plan-head,
+  .plan-reuse,
+  .plan-stats,
+  .plan-summary,
+  .plan-recs,
+  .plan-nurseries,
+  .plan-sources {
+    display: none !important;
+  }
+  .plan-card {
+    box-shadow: none;
+    padding: 0;
+  }
+  .plan-print {
+    display: block;
+  }
+  .plan-print h2 {
+    font-size: 1.4rem;
+    margin: 0 0 0.25rem;
+  }
+  .plan-print ul {
+    margin: 0.75rem 0;
+    padding-left: 1.2rem;
+  }
+  .plan-print li {
+    margin-bottom: 0.35rem;
+  }
+  .plan-print-nursery {
+    margin-top: 1rem;
+    font-size: 0.9rem;
   }
 }

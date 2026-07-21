@@ -184,7 +184,19 @@ export type Preferences = {
   flowering?: "any" | "yes" | "no";
   sun?: "any" | Sun;
   water?: "any" | "low";
+  pollinator?: "any" | "yes";
 };
+
+// A plant counts as pollinator-friendly if its bloom is a reason to plant it
+// and it's an ornamental type bees and butterflies actually visit. This mirrors
+// isPollinatorFriendly() in src/lib/plantData.js so the filter and the
+// "Pollinator-friendly" badge always agree.
+const POLLINATOR_TYPES = new Set<PlantType>([
+  "flower", "herb", "shrub", "tree", "vine", "groundcover",
+]);
+function isPollinator(p: Plant): boolean {
+  return p.flowering && POLLINATOR_TYPES.has(p.type);
+}
 
 // Sun tolerance: a plant listed for less sun than the site gets is still a
 // candidate for part sun, but nothing sun-loving belongs in real shade.
@@ -229,6 +241,9 @@ function buildFilters(prefs: Preferences): Filter[] {
   }
   if (prefs.water === "low") {
     f.push({ key: "water", label: "low-water plants", test: (p) => p.water === "low" });
+  }
+  if (prefs.pollinator === "yes") {
+    f.push({ key: "pollinator", label: "pollinator-friendly plants", test: isPollinator });
   }
   // Least essential last — these are the first to be dropped.
   return f.reverse();

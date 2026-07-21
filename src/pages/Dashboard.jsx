@@ -104,6 +104,15 @@ const QUESTIONS = [
       { value: "low", label: "Low-water only" },
     ],
   },
+  {
+    key: "pollinator",
+    label: "Want to help pollinators?",
+    hint: "Favor blooms that feed bees and butterflies.",
+    options: [
+      { value: "any", label: "No preference" },
+      { value: "yes", label: "🐝 Pollinator-friendly" },
+    ],
+  },
 ];
 
 const DEFAULT_PREFS = {
@@ -113,7 +122,25 @@ const DEFAULT_PREFS = {
   flowering: "any",
   sun: "any",
   water: "any",
+  pollinator: "any",
 };
+
+// Remember the gardener's last answers so a return visit starts where they
+// left off. Stored locally (not the DB) — it's a convenience, not user data.
+const PREFS_KEY = "plantright:last-prefs";
+
+function loadLastPrefs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY));
+    // Merge onto defaults so a newly added question can't arrive undefined.
+    if (saved && typeof saved === "object") {
+      return { ...DEFAULT_PREFS, ...saved, types: saved.types ?? [] };
+    }
+  } catch {
+    /* corrupt or unavailable storage — fall back to defaults */
+  }
+  return DEFAULT_PREFS;
+}
 
 // Little badges under each plant name, so a recommendation explains itself.
 const SIZE_LABEL = { small: "under 2 ft", medium: "2–6 ft", large: "over 6 ft" };
@@ -123,7 +150,7 @@ const WATER_LABEL = { low: "low water", medium: "avg water", high: "thirsty" };
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [location, setLocation] = useState("");
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState(loadLastPrefs);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [plans, setPlans] = useState([]);
@@ -257,6 +284,16 @@ export default function Dashboard() {
     });
   };
 
+  // Load a saved plan's location + answers back into the form so the gardener
+  // can tweak one thing and re-run instead of starting over.
+  const reusePlan = (p) => {
+    setLocation(p.location || "");
+    if (p.preferences && typeof p.preferences === "object") {
+      setPrefs({ ...DEFAULT_PREFS, ...p.preferences, types: p.preferences.types ?? [] });
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const generate = async (e) => {
     e.preventDefault();
     if (!location.trim()) return;
@@ -272,6 +309,12 @@ export default function Dashboard() {
       if (data?.error) throw new Error(data.error);
       setActive(data.plan);
       setLocation("");
+      // Remember these answers for next time.
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+      } catch {
+        /* storage full or blocked — non-critical */
+      }
       await loadPlans();
     } catch (err) {
       // supabase-js wraps non-2xx function responses in a FunctionsHttpError
@@ -358,7 +401,7 @@ export default function Dashboard() {
           {error && <div className="dash-error">{error}</div>}
         </section>
 
-        {active && <PlanCard plan={active} />}
+        {active && <PlanCard plan={active} onReuse={reusePlan} />}
 
         {plans.length > 0 && (
           <section className="dash-saved">
@@ -492,9 +535,21 @@ export function GardenPrefs({ prefs, onToggle, onReset }) {
   );
 }
 
-export function PlanCard({ plan }) {
+export function PlanCard({ plan, onReuse }) {
   // The plant whose photo is open, if any.
   const [preview, setPreview] = useState(null);
+  // Names the gardener has checked off for their shopping list.
+  const [picked, setPicked] = useState(() => new Set());
+
+  const togglePick = (name) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
+  const recs = Array.isArray(plan.recommendations) ? plan.recommendations : [];
+  const pickedList = recs.filter((r) => picked.has(r.name));
 
   return (
     <section className="plan-card">
@@ -505,6 +560,16 @@ export function PlanCard({ plan }) {
         </div>
         {plan.zone && <div className="plan-zone">Zone {plan.zone}</div>}
       </div>
+
+      {onReuse && (
+        <button
+          type="button"
+          className="plan-reuse"
+          onClick={() => onReuse(plan)}
+        >
+          ↻ Re-run these answers with tweaks
+        </button>
+      )}
 
       <div className="plan-stats">
         <div>
@@ -523,13 +588,27 @@ export function PlanCard({ plan }) {
 
       {plan.summary && <p className="plan-summary">{plan.summary}</p>}
 
-      {Array.isArray(plan.recommendations) && plan.recommendations.length > 0 && (
+      {recs.length > 0 && (
         <div className="plan-recs">
           <h3>What will thrive here</h3>
-          <p className="plan-recs-hint">Tap any plant to see what it looks like.</p>
+          <p className="plan-recs-hint">
+            Tap a plant to see what it looks like and how to grow it. Check the
+            ones you want to build a shopping list.
+          </p>
           <ul>
-            {plan.recommendations.map((r, i) => (
-              <li key={i}>
+            {recs.map((r, i) => (
+              <li key={i} className={picked.has(r.name) ? "picked" : ""}>
+                <label
+                  className="plan-rec-pick"
+                  title={`Add ${r.name} to your shopping list`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={picked.has(r.name)}
+                    onChange={() => togglePick(r.name)}
+                    aria-label={`Add ${r.name} to shopping list`}
+                  />
+                </label>
                 <button
                   type="button"
                   className="plan-rec"
@@ -558,6 +637,27 @@ export function PlanCard({ plan }) {
               </li>
             ))}
           </ul>
+
+          {pickedList.length > 0 && (
+            <div className="plan-shop-bar">
+              <span>
+                🛒 {pickedList.length} plant{pickedList.length > 1 ? "s" : ""} on
+                your list
+              </span>
+              <span className="plan-shop-actions">
+                <button type="button" onClick={() => window.print()}>
+                  Print shopping list
+                </button>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => setPicked(new Set())}
+                >
+                  Clear
+                </button>
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -565,8 +665,37 @@ export function PlanCard({ plan }) {
         <PlantPhotoModal
           key={preview.name}
           plant={preview}
+          plan={plan}
           onClose={() => setPreview(null)}
         />
+      )}
+
+      {/* Only rendered for print — a clean shopping list to take to the
+          nursery. Hidden on screen; the print stylesheet reveals it. */}
+      {pickedList.length > 0 && (
+        <div className="plan-print" aria-hidden="true">
+          <h2>PlantRight shopping list</h2>
+          <p>
+            For {plan.location}
+            {plan.zone ? ` · Zone ${plan.zone}` : ""}
+          </p>
+          <ul>
+            {pickedList.map((r, i) => (
+              <li key={i}>
+                <strong>{r.name}</strong>
+                {r.type ? ` — ${r.type}` : ""}
+                {SIZE_LABEL[r.size] ? `, ${SIZE_LABEL[r.size]}` : ""}
+                {SUN_LABEL[r.sun] ? `, ${SUN_LABEL[r.sun]}` : ""}
+              </li>
+            ))}
+          </ul>
+          {Array.isArray(plan.nurseries) && plan.nurseries[0] && (
+            <p className="plan-print-nursery">
+              Nearby: {plan.nurseries[0].name}
+              {plan.nurseries[0].address ? ` — ${plan.nurseries[0].address}` : ""}
+            </p>
+          )}
+        </div>
       )}
 
       <NurseryList plan={plan} />
