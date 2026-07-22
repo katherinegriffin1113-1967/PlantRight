@@ -5,16 +5,21 @@ written 2026-07-20 after the plant-catalog + nursery release; updated
 2026-07-21 after the plant-photos + gardener-features release; updated again
 2026-07-21 for the v2 "Refine" pass (below).
 
-## ⚠️ Current state: main is AHEAD of the live site
+## Current state: v2 IS DEPLOYED (Jul 21)
 
-The v2 refinement work is committed and pushed to `main` but **NOT deployed**.
-The live site at https://plantright.net is still running the plant-photos
-release (Edge Function **version 9**). Deploy is manual and two-part (see the
-deploy section) and was intentionally paused pending Katherine's go-ahead —
-partly because the plan now makes **two** Firecrawl searches instead of one, so
-credit burn per plan doubles, and credits were the main demo risk.
+Everything through commit `9eed720` is **live at https://plantright.net**:
+`planting-plan` Edge Function **version 10** (all five modules),
+`verify-checkout` **version 2**, and the frontend (asset hash
+`index-DiCocMMB.js`, verified against the live HTML). Both functions
+smoke-tested — each returns its own "Not authenticated." with only the
+publishable key, proving the modules boot. Note the plan now makes **two**
+Firecrawl searches, so credit burn per plan is 2x v1.
 
-**Undeployed v2 commits (newest first):**
+Still outstanding: a signed-in end-to-end pass on the live site (Claude can't
+log in), and Katherine adding the reset-password redirect URLs in the Supabase
+dashboard (see the deploy section).
+
+**The v2 commits (newest first):**
 
 - `064a586` — **Address-limit enforcement.** Tiers are sold by property count
   but nothing enforced it. Now the edge function counts the user's distinct
