@@ -294,10 +294,17 @@ Deno.serve(async (req: Request) => {
       .trim()
       .toLowerCase();
     const scoped = scopeToCity(results, city);
-    // Local-conditions pages: prefer city-scoped, but fall back to all results
-    // (extension/soil pages are often county- or state-level, not city-named).
+    // Local-conditions pages: keep ALL of them, city-named ones first. Pest and
+    // soil guidance is usually published at county/state level without naming
+    // the city, and a Mount Pleasant run proved that keeping only city-named
+    // pages can reduce the corpus to one thin page with nothing in it. Order
+    // matters: sourceFor() cites the first page mentioning a term, so the most
+    // local page wins the citation when several mention it.
     const localScoped = scopeToCity(localResultsRaw, city);
-    const localResults = localScoped.length ? localScoped : localResultsRaw;
+    const localResults = [
+      ...localScoped,
+      ...localResultsRaw.filter((r) => !localScoped.includes(r)),
+    ];
 
     // Corpus for text extraction: ONLY city-scoped pages. Generic "zone chart"
     // pages list every zone and every date — using them caused wrong answers.
