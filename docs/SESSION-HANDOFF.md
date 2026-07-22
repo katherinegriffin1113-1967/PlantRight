@@ -1,15 +1,46 @@
 # PlantRight — session handoff
 
 Everything a fresh Claude Code session needs to pick this project up. First
-written 2026-07-20 after the plant-catalog + nursery release; last updated
-2026-07-21 after the plant-photos + gardener-features release.
+written 2026-07-20 after the plant-catalog + nursery release; updated
+2026-07-21 after the plant-photos + gardener-features release; updated again
+2026-07-21 for the v2 "Refine" pass (below).
 
-## Current state: done and shipped
+## ⚠️ Current state: main is AHEAD of the live site
 
-The app is feature-complete for the assignment and **live at
-https://plantright.net**. Nothing is half-finished, and there is no work in
-progress. The last change (commit `0cf59a3`) is committed, pushed to GitHub,
-deployed to Netlify, and the Edge Function is deployed as **version 9**.
+The v2 refinement work is committed and pushed to `main` but **NOT deployed**.
+The live site at https://plantright.net is still running the plant-photos
+release (Edge Function **version 9**). Deploy is manual and two-part (see the
+deploy section) and was intentionally paused pending Katherine's go-ahead —
+partly because the plan now makes **two** Firecrawl searches instead of one, so
+credit burn per plan doubles, and credits were the main demo risk.
+
+**Undeployed v2 commits (newest first):**
+
+- `064a586` — **Address-limit enforcement.** Tiers are sold by property count
+  but nothing enforced it. Now the edge function counts the user's distinct
+  saved addresses (RLS-scoped) and rejects a *new* address once the plan limit
+  is hit — 403 with `code: "address_limit"`, checked *before* the Firecrawl
+  calls so a blocked request spends no credits. Re-running an existing address
+  is always allowed. Limits: **free / Starter / Yard Pro = 1 address, Home +
+  Landscape = 3.** (Free = 1 was an assumption — the tier copy never defines the
+  free tier; confirm with Katherine if the intended model differs.) The
+  dashboard mirrors it: a "N of M addresses used" line and an "Upgrade to add
+  this address" CTA at the limit.
+- `9107b60` — **Deepened Firecrawl + honest landing + login.** A second
+  city-scoped Firecrawl search feeds `supabase/functions/planting-plan/local.ts`
+  (local soil, county extension office, area pests/diseases, per-plant local
+  notes); it runs parallel to the frost search and is non-fatal. The landing
+  hero's sun/soil/microclimate promises are now real and shown in a "Your yard's
+  conditions" strip. Login gained password reset (request + recovery) and a
+  friendly "email not confirmed" path. `matchPlants` now returns copies so
+  per-plant notes can't leak into the shared CATALOG across warm invocations.
+
+**Not yet decided:** the fabricated landing-page stats ("12,000+ homeowners",
+"94% thrive rate", "$340 saved") — flagged for the turn-in, left as-is pending
+Katherine's call.
+
+**Everything below this line describes the plant-photos release** (what's
+currently live) plus the v2 additions where noted.
 
 **Shipped since the original release (all live + committed + pushed):**
 
