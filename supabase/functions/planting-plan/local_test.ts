@@ -3,6 +3,7 @@
 import { assert, assertEquals, assertMatch } from "jsr:@std/assert@1";
 import {
   attachLocalNotes,
+  extractFrostDates,
   extractLocalInsights,
   type SearchResult,
 } from "./local.ts";
@@ -86,6 +87,34 @@ Deno.test("soil, pests, and the extension office are extracted and cited", () =>
       `${c.name} cited the spam page`
     );
   }
+});
+
+Deno.test("frost dates parse the abbreviated forms real pages use", () => {
+  // Verbatim phrasing from almanac.com's Mount Pleasant, SC page — the exact
+  // text that produced an empty plan before abbreviations were accepted.
+  const faq = extractFrostDates(
+    "The average last spring frost date in Mount Pleasant, SC is Mar 21. " +
+      "The average first fall frost date in Mount Pleasant, SC is Nov 21."
+  );
+  assertEquals(faq, { lastFrost: "March 21", firstFrost: "November 21" });
+
+  // Their table layout: labels first, station between them and the dates.
+  const table = extractFrostDates(
+    "Nearest Climate Station Altitude Last Spring Frost First Fall Frost " +
+      "Growing Season SULLIVANS IS, SC 6' Mar 21 Nov 21 244 days"
+  );
+  assertEquals(table.firstFrost, "November 21");
+
+  // Full month names still work, and seasons can't cross-capture.
+  const full = extractFrostDates(
+    "The last frost is typically April 15 and the first fall frost arrives October 25."
+  );
+  assertEquals(full, { lastFrost: "April 15", firstFrost: "October 25" });
+
+  assertEquals(extractFrostDates("no dates here"), {
+    lastFrost: "",
+    firstFrost: "",
+  });
 });
 
 Deno.test("empty results degrade to an empty, not broken, shape", () => {

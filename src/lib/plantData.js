@@ -28,10 +28,13 @@ const MONTHS = [
 // arithmetic on, using a fixed non-leap reference year.
 function parseFrost(text) {
   if (!text) return null;
-  const m = /([A-Za-z]+)\s+(\d{1,2})/.exec(text);
+  const m = /([A-Za-z]{3,})\s+(\d{1,2})/.exec(text);
   if (!m) return null;
-  const month = MONTHS.findIndex(
-    (name) => name.toLowerCase() === m[1].toLowerCase()
+  // Match on the first three letters so "Mar 21" parses like "March 21" —
+  // every month is unambiguous at three characters.
+  const want = m[1].toLowerCase().slice(0, 3);
+  const month = MONTHS.findIndex((name) =>
+    name.toLowerCase().startsWith(want)
   );
   const day = Number(m[2]);
   if (month < 0 || day < 1 || day > 31) return null;

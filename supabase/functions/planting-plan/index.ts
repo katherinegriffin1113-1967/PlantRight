@@ -16,6 +16,7 @@ import { matchPlants, type Preferences } from "./plants.ts";
 import { findNurseries, nurserySearchUrl } from "./nurseries.ts";
 import {
   attachLocalNotes,
+  extractFrostDates,
   extractLocalInsights,
   localQuery,
   type SearchResult,
@@ -330,19 +331,8 @@ Deno.serve(async (req: Request) => {
     }
     const zoneNum = zone.replace(/[ab]$/i, "");
 
-    // --- Frost dates: scoped pages only, season-constrained, date captured ---
-    const springMonths = "(?:February|March|April|May|June)";
-    const fallMonths = "(?:September|October|November|December)";
-    const captureDate = (re: RegExp): string => {
-      const m = corpus.match(re);
-      return m?.[1] ?? "";
-    };
-    const lastFrost = captureDate(
-      new RegExp(`last\\s+(?:spring\\s+)?frost[^.]{0,60}?(${springMonths}\\s+\\d{1,2})`, "i")
-    );
-    const firstFrost = captureDate(
-      new RegExp(`first\\s+(?:fall\\s+|autumn\\s+)?frost[^.]{0,60}?(${fallMonths}\\s+\\d{1,2})`, "i")
-    );
+    // --- Frost dates: scoped pages only, season-constrained, abbreviations OK ---
+    const { lastFrost, firstFrost } = extractFrostDates(corpus);
 
     // --- Plant picks: zone-safe first, then narrowed by the user's answers ---
     const { plants: recommendations, relaxed } = matchPlants(
@@ -357,6 +347,15 @@ Deno.serve(async (req: Request) => {
 
     // --- Where to actually buy them (started before the Firecrawl parse) ---
     const nurseries = await nurseriesPromise;
+
+    // One structured line per plan so extraction gaps are diagnosable from the
+    // function logs without guessing (visible via the dashboard's Logs tab).
+    console.log(
+      `plan-debug loc="${location}" scoped=${scoped.length}/${results.length} ` +
+        `local=${localResults.length}/${localResultsRaw.length} zone=${zone || "-"} ` +
+        `frost=${lastFrost || "-"}|${firstFrost || "-"} soil=${local.soil ? "y" : "n"} ` +
+        `concerns=${local.concerns.length} nurseries=${nurseries.length}`
+    );
 
     const zonePhrase =
       zoneSource === "usda"

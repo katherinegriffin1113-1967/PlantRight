@@ -191,6 +191,37 @@ export function attachLocalNotes(
   return enriched;
 }
 
+// --- Frost dates -------------------------------------------------------------
+// Real pages abbreviate months ("Mar 21" on almanac.com and garden.org), so the
+// patterns accept both forms, season-constrained so a spring capture can never
+// grab a fall date. Captures are normalized to full month names because the
+// client's calendar math parses those.
+const SPRING = "(?:Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?)";
+const FALL = "(?:Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
+const MONTH_FULL: Record<string, string> = {
+  feb: "February", mar: "March", apr: "April", may: "May", jun: "June",
+  sep: "September", oct: "October", nov: "November", dec: "December",
+};
+const canonDate = (d: string): string => {
+  const m = d.match(/^([A-Za-z]+)\s+(\d{1,2})$/);
+  const full = m ? MONTH_FULL[m[1].slice(0, 3).toLowerCase()] : undefined;
+  return full && m ? `${full} ${m[2]}` : d;
+};
+
+export function extractFrostDates(corpus: string): {
+  lastFrost: string;
+  firstFrost: string;
+} {
+  const capture = (re: RegExp) => corpus.match(re)?.[1] ?? "";
+  const lastFrost = capture(
+    new RegExp(`last\\s+(?:spring\\s+)?frost[^.]{0,80}?\\b(${SPRING}\\s+\\d{1,2})\\b`, "i")
+  );
+  const firstFrost = capture(
+    new RegExp(`first\\s+(?:fall\\s+|autumn\\s+)?frost[^.]{0,80}?\\b(${FALL}\\s+\\d{1,2})\\b`, "i")
+  );
+  return { lastFrost: canonDate(lastFrost), firstFrost: canonDate(firstFrost) };
+}
+
 // Build the local search query for a place.
 export const localQuery = (location: string) =>
   `${location} garden common pests and diseases, local soil type, and ` +
