@@ -116,6 +116,25 @@ export default function PlantPhotoModal({ plant, plan, onClose }) {
             <p className="plant-modal-desc">{data.description}</p>
           )}
 
+          {/* A note pulled from local growing pages for this exact area, when
+              the Firecrawl search actually mentioned this plant. */}
+          {plant.localNote && (
+            <section className="plant-detail plant-local-note">
+              <h4>📍 Note for your area</h4>
+              <p>{plant.localNote}</p>
+              {plant.localNoteSource && (
+                <a
+                  href={plant.localNoteSource}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="plant-local-src"
+                >
+                  Source
+                </a>
+              )}
+            </section>
+          )}
+
           {calendar && (
             <section className="plant-detail">
               <h4>🗓️ When to plant</h4>

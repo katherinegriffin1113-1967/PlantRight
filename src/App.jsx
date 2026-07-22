@@ -191,8 +191,9 @@ function Hero() {
           </h1>
 
           <p className="hero-sub">
-            Type in your address. We map your exact sun exposure, soil
-            conditions, and microclimate. You get a precise plant list for your
+            Type in your address and tell us your light. We pin down your exact
+            hardiness zone, frost dates, and local soil — then hand you a plant
+            list, a pest watch, and the nurseries that carry it. For your
             specific yard, not your zip code.
           </p>
 
@@ -507,9 +508,9 @@ function ShoppingVisual() {
 function Features() {
   const features = [
     {
-      metric: "4.3 hrs · exact sun data per bed zone",
-      title: "Address-Level Sun Mapping",
-      body: "We measure real hours of direct sun for every bed — not “part shade” as a vibe. The oak canopy, the garage wall, the afternoon shift: all accounted for.",
+      metric: "Zone · frost dates · soil · pests — for your exact address",
+      title: "Address-Level Conditions",
+      body: "Your hardiness zone and frost dates from official USDA data, your local soil and the pests to watch for pulled live from regional growing guides, and the sun exposure you tell us — combined into a picture of your yard, not a zip-code average.",
       visual: <SunMappingVisual />,
       reverse: false,
     },

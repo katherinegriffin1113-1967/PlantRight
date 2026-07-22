@@ -112,6 +112,36 @@
   font-size: inherit;
   padding: 0;
 }
+/* "Forgot your password?" — a quiet, right-aligned link under the password. */
+.auth-forgot {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: var(--slate-moss, #5a6b5e);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  margin: -0.25rem 0 0;
+}
+.auth-forgot:hover {
+  color: var(--canopy, #40916c);
+  text-decoration: underline;
+}
+/* Resend-confirmation, shown only after an unconfirmed sign-in attempt. */
+.auth-resend {
+  background: none;
+  border: 1px solid var(--canopy, #40916c);
+  color: var(--deep-grove, #2d6a4f);
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+.auth-resend:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* ---------- Dashboard ---------- */
 .dash {
@@ -457,6 +487,115 @@
 }
 .plan-tags em.bloom {
   background: var(--morning-dew, #b7e4c7);
+}
+.plan-tags em.local-flag {
+  background: #fdf3e2;
+  color: #9a6a1e;
+}
+
+/* ---------- Your yard's conditions (sun / microclimate / soil) ---------- */
+.plan-conditions {
+  margin: 1.5rem 0;
+}
+.plan-conditions h3 {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  margin: 0 0 0.75rem;
+}
+.cond-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+.cond {
+  background: var(--fog, #f7faf8);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+.cond.cond-wide {
+  grid-column: 1 / -1;
+}
+.cond span {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--slate-moss, #5a6b5e);
+  margin-bottom: 0.3rem;
+}
+.cond strong {
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* ---------- Local pest & disease watch ---------- */
+.plan-watch {
+  margin: 1.5rem 0;
+  background: #fdf7ee;
+  border: 1px solid #f0e2c8;
+  border-radius: 0.75rem;
+  padding: 1.1rem 1.25rem;
+}
+.plan-watch h3 {
+  font-family: var(--font-display, "DM Serif Display", serif);
+  margin: 0 0 0.5rem;
+  color: #8a5a12;
+}
+.plan-watch-hint {
+  margin: 0 0 0.7rem;
+  font-size: 0.85rem;
+  color: var(--slate-moss, #5a6b5e);
+}
+.watch-chips {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.watch-chips li {
+  font-size: 0.8rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 9999px;
+  background: #f7e7c9;
+  color: #8a5a12;
+}
+.watch-chips a {
+  color: inherit;
+  text-decoration: underline;
+}
+.plan-extension {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+}
+.plan-extension a {
+  color: var(--deep-grove, #2d6a4f);
+  font-weight: 600;
+}
+
+/* Local note inside a plant's detail modal. */
+.plant-local-note {
+  background: #fdf7ee;
+  border-radius: 0.6rem;
+  padding: 0.75rem 0.9rem;
+}
+.plant-local-note p {
+  margin: 0.35rem 0 0;
+  line-height: 1.55;
+}
+.plant-local-src {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--slate-moss, #5a6b5e);
+  text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  .cond-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------- Overhead satellite view ---------- */

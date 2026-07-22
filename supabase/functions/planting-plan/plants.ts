@@ -312,5 +312,7 @@ export function matchPlants(
     }
   }
 
-  return { plants: picked, relaxed: relaxed.reverse() };
+  // Return shallow copies — callers enrich each pick (e.g. with a local note),
+  // and these must never mutate the shared CATALOG across warm invocations.
+  return { plants: picked.map((p) => ({ ...p })), relaxed: relaxed.reverse() };
 }

@@ -589,6 +589,38 @@ export function PlanCard({ plan, onReuse }) {
 
       {plan.summary && <p className="plan-summary">{plan.summary}</p>}
 
+      {/* The three things the address actually determines: sun (the gardener's
+          answer, which the picks are matched to), soil (from Firecrawl), and
+          microclimate (zone + frost dates). */}
+      {plan.conditions &&
+        (plan.conditions.sun ||
+          plan.conditions.soil ||
+          plan.conditions.microclimate) && (
+          <div className="plan-conditions">
+            <h3>Your yard's conditions</h3>
+            <div className="cond-grid">
+              {plan.conditions.sun && (
+                <div className="cond">
+                  <span>☀️ Sun exposure</span>
+                  <strong>{plan.conditions.sun}</strong>
+                </div>
+              )}
+              {plan.conditions.microclimate && (
+                <div className="cond">
+                  <span>🌡️ Microclimate</span>
+                  <strong>{plan.conditions.microclimate}</strong>
+                </div>
+              )}
+              {plan.conditions.soil && (
+                <div className="cond cond-wide">
+                  <span>🪱 Soil</span>
+                  <strong>{plan.conditions.soil}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       <YardView key={plan.location} plan={plan} />
 
       {recs.length > 0 && (
@@ -630,6 +662,9 @@ export function PlanCard({ plan, onReuse }) {
                         {SUN_LABEL[r.sun] && <em>{SUN_LABEL[r.sun]}</em>}
                         {WATER_LABEL[r.water] && <em>{WATER_LABEL[r.water]}</em>}
                         {r.flowering && <em className="bloom">flowering</em>}
+                        {r.localNote && (
+                          <em className="local-flag">📍 local note</em>
+                        )}
                       </span>
                     )}
                   </span>
@@ -660,6 +695,47 @@ export function PlanCard({ plan, onReuse }) {
                 </button>
               </span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Local pest/disease watch + the county extension office, both mined
+          from the second Firecrawl search. */}
+      {((Array.isArray(plan.concerns) && plan.concerns.length > 0) ||
+        plan.extension) && (
+        <div className="plan-watch">
+          <h3>Local pest &amp; disease watch</h3>
+          {Array.isArray(plan.concerns) && plan.concerns.length > 0 && (
+            <>
+              <p className="plan-watch-hint">
+                Reported for your area — scout for these and act early:
+              </p>
+              <ul className="watch-chips">
+                {plan.concerns.map((c, i) => (
+                  <li key={i}>
+                    {c.source ? (
+                      <a href={c.source} target="_blank" rel="noreferrer">
+                        {c.name}
+                      </a>
+                    ) : (
+                      c.name
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {plan.extension && (
+            <p className="plan-extension">
+              📍 Your local growing resource:{" "}
+              <a
+                href={plan.extension.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {plan.extension.title}
+              </a>
+            </p>
           )}
         </div>
       )}

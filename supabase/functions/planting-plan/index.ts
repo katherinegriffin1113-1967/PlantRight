@@ -14,6 +14,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { matchPlants, type Preferences } from "./plants.ts";
 import { findNurseries, nurserySearchUrl } from "./nurseries.ts";
+import {
+  attachLocalNotes,
+  extractLocalInsights,
+  localQuery,
+  type SearchResult,
+} from "./local.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +35,44 @@ const json = (body: unknown, status = 200) =>
   });
 
 const UA = { "User-Agent": "PlantRight/1.0 (plantright.net)" };
+
+// One Firecrawl v2 search. Returns the raw web results (or throws with the
+// response body so the caller can decide whether a failure is fatal).
+async function firecrawlSearch(
+  key: string,
+  query: string,
+  limit = 5
+): Promise<SearchResult[]> {
+  const res = await fetch("https://api.firecrawl.dev/v2/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      limit,
+      sources: [{ type: "web" }],
+      scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Firecrawl ${res.status}: ${detail.slice(0, 300)}`);
+  }
+  const fc = await res.json();
+  return (fc?.data?.web ?? fc?.data ?? []) as SearchResult[];
+}
+
+// Keep only results actually about the searched city — used for both the frost
+// corpus and the local-insights corpus.
+function scopeToCity(results: SearchResult[], city: string): SearchResult[] {
+  return results.filter((r) =>
+    `${r.title ?? ""} ${r.description ?? ""} ${r.url ?? ""}`
+      .toLowerCase()
+      .includes(city)
+  );
+}
 
 const fetchJson = async (url: string, ms = 8000): Promise<any | null> => {
   try {
@@ -172,39 +216,31 @@ Deno.serve(async (req: Request) => {
       )
       .catch(() => []);
 
-    const [place, fcRes] = await Promise.all([
-      placePromise,
-      fetch("https://api.firecrawl.dev/v2/search", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${firecrawlKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          limit: 5,
-          sources: [{ type: "web" }],
-          scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
-        }),
-      }),
-    ]);
+    // Kick off both Firecrawl searches now so they run in parallel with the
+    // place lookup. The frost search is required; the local-conditions search
+    // is a bonus that must never fail the plan, so it's caught to an empty list.
+    const frostSearch = firecrawlSearch(firecrawlKey, query, 5);
+    const localSearch = firecrawlSearch(firecrawlKey, localQuery(location), 5)
+      .catch((e) => {
+        console.error("Local Firecrawl search failed:", (e as Error).message);
+        return [] as SearchResult[];
+      });
 
-    if (!fcRes.ok) {
-      const detail = await fcRes.text();
-      console.error("Firecrawl error:", detail.slice(0, 500));
+    const place = await placePromise.catch(
+      () => ({ zone: "", zip: "", lat: null, lon: null })
+    );
+
+    let results: SearchResult[];
+    try {
+      results = await frostSearch;
+    } catch (e) {
+      console.error("Firecrawl error:", (e as Error).message);
       return json(
         { error: "Live growing-data lookup failed. Please try again shortly." },
         502
       );
     }
-
-    const fc = await fcRes.json();
-    const results = (fc?.data?.web ?? fc?.data ?? []) as Array<{
-      title?: string;
-      url?: string;
-      description?: string;
-      markdown?: string;
-    }>;
+    const localResultsRaw = await localSearch;
 
     // Results that are actually ABOUT the searched place. A leading segment
     // with digits is a street address — the city is the next segment.
@@ -212,11 +248,11 @@ Deno.serve(async (req: Request) => {
     const city = ((/\d/.test(parts[0]) && parts[1] ? parts[1] : parts[0]) || location)
       .trim()
       .toLowerCase();
-    const scoped = results.filter((r) =>
-      `${r.title ?? ""} ${r.description ?? ""} ${r.url ?? ""}`
-        .toLowerCase()
-        .includes(city)
-    );
+    const scoped = scopeToCity(results, city);
+    // Local-conditions pages: prefer city-scoped, but fall back to all results
+    // (extension/soil pages are often county- or state-level, not city-named).
+    const localScoped = scopeToCity(localResultsRaw, city);
+    const localResults = localScoped.length ? localScoped : localResultsRaw;
 
     // Corpus for text extraction: ONLY city-scoped pages. Generic "zone chart"
     // pages list every zone and every date — using them caused wrong answers.
@@ -270,6 +306,11 @@ Deno.serve(async (req: Request) => {
       preferences
     );
 
+    // --- Local intelligence from the second Firecrawl search: soil, the county
+    // extension office, area pests/diseases, and per-plant local notes ---
+    const local = extractLocalInsights(localResults);
+    attachLocalNotes(recommendations, localResults);
+
     // --- Where to actually buy them (started before the Firecrawl parse) ---
     const nurseries = await nurseriesPromise;
 
@@ -304,11 +345,35 @@ Deno.serve(async (req: Request) => {
             },
           ]
         : []),
+      // Surface the local extension office up top when we found one — it's the
+      // most useful link a local gardener can have.
+      ...(local.extensionUrl
+        ? [{ title: local.extensionTitle!, url: local.extensionUrl }]
+        : []),
       ...(scoped.length ? scoped : results)
-        .filter((r) => r.url)
+        .filter((r) => r.url && r.url !== local.extensionUrl)
         .slice(0, 5)
         .map((r) => ({ title: r.title || r.url!, url: r.url! })),
     ];
+
+    // The three things the landing page promises to "map" for the address,
+    // now each backed by real data: sun (the gardener's answer, which the
+    // catalog is matched against), soil (Firecrawl), microclimate (zone+frost).
+    const SUN_LABEL: Record<string, string> = {
+      full: "Full sun (6h+ direct)",
+      part: "Partial sun / shade",
+      shade: "Shade",
+    };
+    const conditions = {
+      sun: SUN_LABEL[preferences.sun ?? ""] ?? "Any exposure",
+      soil: local.soil,
+      microclimate:
+        zone && (lastFrost || firstFrost)
+          ? `Zone ${zone} · frost-free ${lastFrost || "?"}–${firstFrost || "?"}`
+          : zone
+            ? `USDA zone ${zone}`
+            : "",
+    };
 
     const plan = {
       location,
@@ -321,6 +386,13 @@ Deno.serve(async (req: Request) => {
       recommendations,
       preferences,
       relaxed,
+      conditions,
+      soil: local.soil,
+      soil_source: local.soilSource ?? "",
+      extension: local.extensionUrl
+        ? { title: local.extensionTitle, url: local.extensionUrl }
+        : null,
+      concerns: local.concerns,
       nurseries,
       nursery_search_url: nurserySearchUrl(location),
       sources,
