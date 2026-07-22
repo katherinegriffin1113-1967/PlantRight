@@ -14,6 +14,11 @@ export default function YardView({ plan }) {
   const [status, setStatus] = useState(hasCoords ? "ready" : "loading");
   const [imgBroken, setImgBroken] = useState(false);
 
+  // A leading house number means a specific property — zoom to the parcel.
+  // "Denver, CO" has no parcel to show, so frame the area and say so, rather
+  // than presenting one random downtown block as "your address".
+  const precise = /^\s*\d+\s/.test(plan?.location ?? "");
+
   useEffect(() => {
     if (coords) return;
     let live = true;
@@ -41,7 +46,9 @@ export default function YardView({ plan }) {
         {status === "loading" && <div className="yard-view-skeleton" />}
         {status === "ready" && coords && (
           <img
-            src={satelliteImageUrl(coords.lon, coords.lat)}
+            src={satelliteImageUrl(coords.lon, coords.lat, {
+              zoom: precise ? 18 : 13,
+            })}
             alt={`Satellite view of ${plan.location}`}
             loading="lazy"
             onError={() => setImgBroken(true)}
@@ -49,7 +56,9 @@ export default function YardView({ plan }) {
         )}
       </div>
       <figcaption className="yard-view-cap">
-        <span>🛰️ Overhead view of your address</span>
+        <span>
+          🛰️ Overhead view of your {precise ? "address" : "area"}
+        </span>
         <span className="yard-view-attr">
           ©{" "}
           <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer">

@@ -250,6 +250,24 @@
   font-size: 0.88rem;
   color: var(--slate-moss, #5a6b5e);
 }
+.dash-hint-spinner {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--morning-dew, #b7e4c7);
+  border-top-color: var(--deep-grove, #2d6a4f);
+  border-radius: 50%;
+  vertical-align: -0.1rem;
+  animation: dash-spin 0.9s linear infinite;
+}
+.dash-hint-eta {
+  opacity: 0.7;
+}
+@keyframes dash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 /* Amber "upgrade" variant of the submit button, shown when the account has hit
    its address limit. */
 .dash-form-row button.dash-upgrade-cta {

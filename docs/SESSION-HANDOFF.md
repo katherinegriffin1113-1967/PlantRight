@@ -35,6 +35,13 @@ credit burn per plan doubles, and credits were the main demo risk.
   friendly "email not confirmed" path. `matchPlants` now returns copies so
   per-plant notes can't leak into the shared CATALOG across warm invocations.
 
+**Already live (DB changes don't wait for a deploy):** the demo account was
+bumped to `homelandscape` and its 17 dev-test plans pruned to 1 (newest West
+Palm Beach) so a live demo can add two new addresses; `subscriptions` gained a
+`stripe_subscription_id` column; and the weather-app leftovers
+(`saved_locations` table, `profiles.temp_unit`/`wind_unit`) were dropped after
+confirming `handle_new_user` doesn't reference them.
+
 **Not yet decided:** the fabricated landing-page stats ("12,000+ homeowners",
 "94% thrive rate", "$340 saved") — flagged for the turn-in, left as-is pending
 Katherine's call.
@@ -175,10 +182,18 @@ distance (so distance is computed and sorted locally), and `limit` must be high
 **There is no Supabase CLI installed and Netlify is not wired to GitHub CI.
 Pushing to GitHub deploys nothing.** Both halves are manual:
 
-**Edge Function** — use the Supabase MCP `deploy_edge_function` tool. You must
-inline the content of *every* file (`index.ts`, `plants.ts`, `nurseries.ts`) in
-the `files` array; omitting one fails with `Module not found`. Afterward, diff
-`get_edge_function` output against the local files to catch transcription drift.
+**Edge Functions** — use the Supabase MCP `deploy_edge_function` tool. For
+`planting-plan` you must inline the content of *every* file — now FIVE:
+`index.ts`, `plants.ts`, `nurseries.ts`, `local.ts`, `address.ts` — in the
+`files` array; omitting one fails with `Module not found`. `verify-checkout`
+also needs redeploying (it now cancels the previous Stripe subscription on a
+plan switch). Afterward, diff `get_edge_function` output against the local
+files to catch transcription drift.
+
+**Supabase Auth config (one-time, dashboard only — no MCP tool for this):**
+add `https://plantright.net/login` and the netlify.app equivalent to
+Authentication → URL Configuration → Redirect URLs, or password-reset emails
+won't return users to the app.
 
 **Frontend** — `npm run build`, then call the Netlify MCP `deploy-site` tool
 and run the `npx @netlify/mcp …` command it returns. The returned proxy URL has
@@ -188,8 +203,13 @@ hash `npm run build` just printed.
 
 **Verifying the function without logging in:** POST to the function with only
 the publishable key. A response of `{"error":"Not authenticated."}` is the
-function's *own* message, which proves all three modules loaded and executed in
+function's *own* message, which proves all its modules loaded and executed in
 Supabase's Deno runtime. A gateway error or 500 would mean a boot failure.
+
+**Tests:** `npm test` runs the Deno suite over the edge modules (matcher,
+address canonicalization, local-intelligence extraction). Run it before any
+edge deploy. See `docs/DEMO.md` for the full pre-turn-in checklist and demo
+click path.
 
 ## Gotchas that already cost time
 

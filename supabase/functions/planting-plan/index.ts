@@ -20,6 +20,7 @@ import {
   localQuery,
   type SearchResult,
 } from "./local.ts";
+import { normalizeAddress } from "./address.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -219,16 +220,16 @@ Deno.serve(async (req: Request) => {
     const addressLimit =
       subRow?.status === "active" ? ADDRESS_LIMIT[subRow.plan] ?? 1 : 1;
 
-    const normLoc = (s: string) =>
-      s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const { data: priorRows } = await supabase
       .from("planting_plans")
       .select("location");
     const priorAddresses = new Set(
-      (priorRows ?? []).map((r) => normLoc(r.location ?? "")).filter(Boolean)
+      (priorRows ?? [])
+        .map((r) => normalizeAddress(r.location ?? ""))
+        .filter(Boolean)
     );
     if (
-      !priorAddresses.has(normLoc(location)) &&
+      !priorAddresses.has(normalizeAddress(location)) &&
       priorAddresses.size >= addressLimit
     ) {
       return json(
@@ -420,6 +421,10 @@ Deno.serve(async (req: Request) => {
 
     const plan = {
       location,
+      // The geocoded point, so the satellite view doesn't have to re-geocode
+      // client-side with a different geocoder that may disagree.
+      lat: place.lat,
+      lon: place.lon,
       zone,
       last_frost: lastFrost,
       first_frost: firstFrost,

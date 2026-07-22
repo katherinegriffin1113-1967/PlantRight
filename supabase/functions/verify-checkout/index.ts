@@ -92,11 +92,39 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Unrecognized plan on session." }, 400);
     }
 
+    const newSubId =
+      typeof session.subscription === "string" ? session.subscription : null;
+
+    // Switching tiers creates a brand-new Stripe subscription; without this,
+    // the old one keeps billing forever. Cancel it before recording the new
+    // plan. Best-effort: a failed cancel is logged, never blocks the upgrade
+    // the user just paid for.
+    const { data: existing } = await admin
+      .from("subscriptions")
+      .select("stripe_subscription_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const oldSubId = existing?.stripe_subscription_id;
+    if (oldSubId && oldSubId !== newSubId) {
+      const cancel = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(oldSubId)}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${stripeKey}` } }
+      );
+      if (!cancel.ok) {
+        console.error(
+          "Could not cancel previous subscription",
+          oldSubId,
+          await cancel.text().then((t) => t.slice(0, 300))
+        );
+      }
+    }
+
     const { error: upsertErr } = await admin.from("subscriptions").upsert({
       user_id: user.id,
       plan,
       plan_interval: interval === "annual" ? "annual" : "monthly",
       stripe_session_id: session.id,
+      stripe_subscription_id: newSubId,
       stripe_customer_id:
         typeof session.customer === "string" ? session.customer : null,
       status: "active",

@@ -981,17 +981,39 @@ function FinalCta() {
 /* ================================================================== */
 /*  FOOTER                                                            */
 /* ================================================================== */
+// Every footer link goes somewhere real — in-page sections, the app itself,
+// or the live data sources the plans are actually built from.
 const footerCols = [
   {
     title: "Product",
-    links: ["How It Works", "Features", "Pricing", "Plant Database"],
+    links: [
+      { label: "How It Works", href: "#video" },
+      { label: "Features", href: "#features" },
+      { label: "Pricing", href: "#pricing" },
+      { label: "Sign In", href: "/login" },
+    ],
   },
   {
-    title: "Resources",
-    links: ["Garden Journal", "Sun Mapping Guide", "Help Center", "Blog"],
+    title: "Our Data Sources",
+    links: [
+      {
+        label: "USDA Hardiness Map",
+        href: "https://planthardiness.ars.usda.gov/",
+        external: true,
+      },
+      { label: "Firecrawl", href: "https://www.firecrawl.dev", external: true },
+      {
+        label: "OpenStreetMap",
+        href: "https://www.openstreetmap.org/about",
+        external: true,
+      },
+      {
+        label: "Wikipedia",
+        href: "https://en.wikipedia.org",
+        external: true,
+      },
+    ],
   },
-  { title: "Company", links: ["About", "Careers", "Press", "Contact"] },
-  { title: "Legal", links: ["Privacy", "Terms", "Cookies", "Accessibility"] },
 ];
 
 function Footer() {
@@ -1007,20 +1029,6 @@ function Footer() {
               Address-specific plant recommendations. Not your zone. Not your
               region. Your yard.
             </p>
-            <div className="social-icons">
-              <a href="#" aria-label="Instagram">
-                ◎
-              </a>
-              <a href="#" aria-label="Pinterest">
-                ◈
-              </a>
-              <a href="#" aria-label="Facebook">
-                ƒ
-              </a>
-              <a href="#" aria-label="YouTube">
-                ▷
-              </a>
-            </div>
           </div>
 
           {footerCols.map((col) => (
@@ -1028,8 +1036,15 @@ function Footer() {
               <h5>{col.title}</h5>
               <ul>
                 {col.links.map((link) => (
-                  <li key={link}>
-                    <a href="#">{link}</a>
+                  <li key={link.label}>
+                    <a
+                      href={link.href}
+                      {...(link.external
+                        ? { target: "_blank", rel: "noreferrer" }
+                        : {})}
+                    >
+                      {link.label}
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -1040,9 +1055,7 @@ function Footer() {
         <div className="footer-bottom">
           <span>© 2026 PlantRight. All rights reserved.</span>
           <div className="footer-bottom-links">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-            <a href="#">Cookies</a>
+            <span>Built with React, Supabase, Stripe &amp; Firecrawl</span>
           </div>
         </div>
       </div>

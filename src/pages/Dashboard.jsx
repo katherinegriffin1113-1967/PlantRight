@@ -43,8 +43,38 @@ const PLAN_NAMES = {
 // the two in sync.
 const ADDRESS_LIMITS = { starter: 1, yardpro: 1, homelandscape: 3 };
 const FREE_ADDRESS_LIMIT = 1;
-const normLoc = (s) =>
-  (s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// Canonicalize an address so phrasing variants ("Main Street" vs "Main St")
+// count as ONE address. Mirrors normalizeAddress in the edge function's
+// address.ts — CHANGE BOTH TOGETHER.
+const ADDR_ABBREV = {
+  street: "st", avenue: "ave", boulevard: "blvd", drive: "dr", lane: "ln",
+  road: "rd", court: "ct", circle: "cir", place: "pl", terrace: "ter",
+  parkway: "pkwy", highway: "hwy", trail: "trl",
+  north: "n", south: "s", east: "e", west: "w",
+  northeast: "ne", northwest: "nw", southeast: "se", southwest: "sw",
+  apartment: "apt", suite: "ste",
+};
+const ADDR_DROP = new Set(["usa", "us", "united", "states", "america"]);
+const normLoc = (s) => {
+  const words = (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((w) => !ADDR_DROP.has(w))
+    .map((w) => ADDR_ABBREV[w] ?? w);
+  // A trailing ZIP or ZIP+4 doesn't make it a different address (leading house
+  // numbers are untouched — only the END is checked).
+  const last = () => words[words.length - 1];
+  if (words.length > 2 && /^\d{4}$/.test(last()) && /^\d{5}$/.test(words[words.length - 2])) {
+    words.pop();
+  }
+  if (words.length > 1 && /^\d{5}$/.test(last())) {
+    words.pop();
+  }
+  return words.join(" ");
+};
 
 // The questions that narrow the catalog. `multi` groups are toggles that add
 // up; the rest are single-choice, with "any" meaning "no preference".
@@ -153,6 +183,16 @@ function loadLastPrefs() {
 }
 
 // Little badges under each plant name, so a recommendation explains itself.
+// Shown in sequence while a plan builds (15–30s) so the wait reads as work
+// happening, not a hang. Order mirrors what the edge function actually does.
+const BUILD_STAGES = [
+  "Pinning down your USDA zone from the official map…",
+  "Reading local growing pages with Firecrawl…",
+  "Checking your area's soil, pests, and frost dates…",
+  "Matching plants to your zone and answers…",
+  "Finding nurseries near you…",
+];
+
 const SIZE_LABEL = { small: "under 2 ft", medium: "2–6 ft", large: "over 6 ft" };
 const SUN_LABEL = { full: "full sun", part: "part sun", shade: "shade" };
 const WATER_LABEL = { low: "low water", medium: "avg water", high: "thirsty" };
@@ -162,6 +202,7 @@ export default function Dashboard() {
   const [location, setLocation] = useState("");
   const [prefs, setPrefs] = useState(loadLastPrefs);
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState(0);
   const [error, setError] = useState("");
   const [plans, setPlans] = useState([]);
   const [active, setActive] = useState(null);
@@ -277,6 +318,17 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Walk the build stages while a plan generates. The stage counter is reset
+  // in generate() (not here) so this effect only ever schedules the timer.
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(
+      () => setStage((i) => Math.min(i + 1, BUILD_STAGES.length - 1)),
+      6000
+    );
+    return () => clearInterval(t);
+  }, [busy]);
+
   // Multi-select groups accumulate; single-choice groups replace, and
   // re-tapping the current choice clears it back to "no preference".
   const togglePref = (q, value) => {
@@ -308,6 +360,18 @@ export default function Dashboard() {
   // how many its plan allows. Mirrors the edge function's enforcement so we can
   // steer the gardener to upgrade before a request is rejected server-side.
   const addressLimit = sub ? ADDRESS_LIMITS[sub.plan] ?? FREE_ADDRESS_LIMIT : FREE_ADDRESS_LIMIT;
+  // Re-runs pile up one row per generate; the saved list should show one card
+  // per address — the newest (rows arrive newest-first, so first one wins).
+  const latestPerAddress = [];
+  {
+    const seenAddr = new Set();
+    for (const p of plans) {
+      const k = normLoc(p.plan?.location || p.location);
+      if (!k || seenAddr.has(k)) continue;
+      seenAddr.add(k);
+      latestPerAddress.push(p);
+    }
+  }
   const usedAddresses = new Set(
     plans.map((p) => normLoc(p.plan?.location || p.location)).filter(Boolean)
   );
@@ -336,6 +400,7 @@ export default function Dashboard() {
       goToUpgrade();
       return;
     }
+    setStage(0);
     setBusy(true);
     setError("");
     try {
@@ -459,9 +524,10 @@ export default function Dashboard() {
             </p>
           </form>
           {busy && (
-            <p className="dash-hint">
-              Gathering local growing data with Firecrawl — this can take
-              15–30&nbsp;seconds.
+            <p className="dash-hint" role="status">
+              <span className="dash-hint-spinner" aria-hidden="true" />{" "}
+              {BUILD_STAGES[stage]}{" "}
+              <span className="dash-hint-eta">(15–30 seconds total)</span>
             </p>
           )}
           {error && <div className="dash-error">{error}</div>}
@@ -469,11 +535,11 @@ export default function Dashboard() {
 
         {active && <PlanCard plan={active} onReuse={reusePlan} />}
 
-        {plans.length > 0 && (
+        {latestPerAddress.length > 0 && (
           <section className="dash-saved">
             <h2>Saved plans</h2>
             <div className="dash-saved-grid">
-              {plans.map((p) => {
+              {latestPerAddress.map((p) => {
                 const plan = p.plan || p;
                 return (
                   <button
