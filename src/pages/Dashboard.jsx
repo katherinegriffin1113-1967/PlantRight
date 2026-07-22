@@ -37,6 +37,15 @@ const PLAN_NAMES = {
   homelandscape: "Home + Landscape",
 };
 
+// How many distinct properties each plan covers. No active subscription (the
+// free tier) covers one — same as the entry tier. The edge function enforces
+// this authoritatively; the client mirrors it only to guide the gardener. Keep
+// the two in sync.
+const ADDRESS_LIMITS = { starter: 1, yardpro: 1, homelandscape: 3 };
+const FREE_ADDRESS_LIMIT = 1;
+const normLoc = (s) =>
+  (s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
 // The questions that narrow the catalog. `multi` groups are toggles that add
 // up; the rest are single-choice, with "any" meaning "no preference".
 const QUESTIONS = [
@@ -295,9 +304,38 @@ export default function Dashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Which distinct properties this account has already generated plans for, and
+  // how many its plan allows. Mirrors the edge function's enforcement so we can
+  // steer the gardener to upgrade before a request is rejected server-side.
+  const addressLimit = sub ? ADDRESS_LIMITS[sub.plan] ?? FREE_ADDRESS_LIMIT : FREE_ADDRESS_LIMIT;
+  const usedAddresses = new Set(
+    plans.map((p) => normLoc(p.plan?.location || p.location)).filter(Boolean)
+  );
+  const usedCount = usedAddresses.size;
+  const overAddressLimit = usedCount >= addressLimit;
+  // A genuinely new address is typed (re-running an existing one is always fine).
+  const typedNewAddress =
+    !!location.trim() && !usedAddresses.has(normLoc(location));
+  const blockThisAddress = overAddressLimit && typedNewAddress;
+  const planLabel = sub ? PLAN_NAMES[sub.plan] ?? sub.plan : "Free";
+
+  const goToUpgrade = () =>
+    document.getElementById("upgrade")?.scrollIntoView({ behavior: "smooth" });
+
   const generate = async (e) => {
     e.preventDefault();
     if (!location.trim()) return;
+    // Gate a genuinely new address at the plan limit. Re-running an address the
+    // account already has is always allowed.
+    if (blockThisAddress) {
+      setError(
+        `Your ${planLabel} plan covers ${addressLimit} ` +
+          `${addressLimit === 1 ? "address" : "addresses"}. ` +
+          `Upgrade to add another property.`
+      );
+      goToUpgrade();
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -388,10 +426,37 @@ export default function Dashboard() {
                 placeholder="e.g. 1600 Amphitheatre Pkwy, Mountain View, CA"
                 aria-label="Your address or city"
               />
-              <button type="submit" disabled={busy}>
-                {busy ? "Building your plan…" : "Get my plan"}
-              </button>
+              {blockThisAddress ? (
+                <button
+                  type="button"
+                  className="dash-upgrade-cta"
+                  onClick={goToUpgrade}
+                >
+                  Upgrade to add this address
+                </button>
+              ) : (
+                <button type="submit" disabled={busy}>
+                  {busy ? "Building your plan…" : "Get my plan"}
+                </button>
+              )}
             </div>
+            <p className="dash-usage">
+              {usedCount} of {addressLimit}{" "}
+              {addressLimit === 1 ? "address" : "addresses"} used on your{" "}
+              <strong>{planLabel}</strong> plan
+              {overAddressLimit && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    className="dash-usage-link"
+                    onClick={goToUpgrade}
+                  >
+                    add more
+                  </button>
+                </>
+              )}
+            </p>
           </form>
           {busy && (
             <p className="dash-hint">

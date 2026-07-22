@@ -250,6 +250,34 @@
   font-size: 0.88rem;
   color: var(--slate-moss, #5a6b5e);
 }
+/* Amber "upgrade" variant of the submit button, shown when the account has hit
+   its address limit. */
+.dash-form-row button.dash-upgrade-cta {
+  background: #c77d2e;
+}
+.dash-form-row button.dash-upgrade-cta:hover {
+  background: #b06a1f;
+}
+/* Small "X of N addresses used" line under the form. */
+.dash-usage {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--slate-moss, #5a6b5e);
+}
+.dash-usage strong {
+  color: var(--deep-grove, #2d6a4f);
+  font-weight: 600;
+}
+.dash-usage-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #c77d2e;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
 .dash-error {
   margin-top: 1rem;
   padding: 0.75rem 0.9rem;

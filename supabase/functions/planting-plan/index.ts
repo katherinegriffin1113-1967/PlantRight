@@ -202,6 +202,49 @@ Deno.serve(async (req: Request) => {
     } = await supabase.auth.getUser();
     if (!user) return json({ error: "Not authenticated." }, 401);
 
+    // --- Enforce the per-plan address limit BEFORE spending Firecrawl credits.
+    // Tiers are sold by number of properties an account can cover; the free and
+    // entry tiers cover one, Home + Landscape covers three. Re-running a plan
+    // for an address the user already has never counts as a new address. Both
+    // reads are RLS-scoped to this user. ---
+    const ADDRESS_LIMIT: Record<string, number> = {
+      starter: 1,
+      yardpro: 1,
+      homelandscape: 3,
+    };
+    const { data: subRow } = await supabase
+      .from("subscriptions")
+      .select("plan, status")
+      .maybeSingle();
+    const addressLimit =
+      subRow?.status === "active" ? ADDRESS_LIMIT[subRow.plan] ?? 1 : 1;
+
+    const normLoc = (s: string) =>
+      s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const { data: priorRows } = await supabase
+      .from("planting_plans")
+      .select("location");
+    const priorAddresses = new Set(
+      (priorRows ?? []).map((r) => normLoc(r.location ?? "")).filter(Boolean)
+    );
+    if (
+      !priorAddresses.has(normLoc(location)) &&
+      priorAddresses.size >= addressLimit
+    ) {
+      return json(
+        {
+          error:
+            `Your current plan covers ${addressLimit} ` +
+            `${addressLimit === 1 ? "address" : "addresses"}, and you've ` +
+            `already used ${priorAddresses.size}. Upgrade to add another property.`,
+          code: "address_limit",
+          limit: addressLimit,
+          used: priorAddresses.size,
+        },
+        403
+      );
+    }
+
     // --- Kick off official zone lookup and Firecrawl search in parallel ---
     const query =
       `${location} USDA plant hardiness zone, average last spring frost and ` +
