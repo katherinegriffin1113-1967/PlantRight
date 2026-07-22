@@ -82,7 +82,7 @@ export async function findNurseries(
   const seen = new Set<string>();
   const found: Nursery[] = [];
 
-  for (const q of QUERIES) {
+  for (const [qi, q] of QUERIES.entries()) {
     const url =
       `${NOMINATIM}?q=${encodeURIComponent(q)}&format=jsonv2&limit=40` +
       `&bounded=1&viewbox=${viewbox}&addressdetails=1&extratags=1&countrycodes=us`;
@@ -133,8 +133,11 @@ export async function findNurseries(
       });
     }
 
-    // Nominatim's usage policy caps clients at one request per second.
-    await new Promise((r) => setTimeout(r, 1100));
+    // Nominatim's usage policy caps clients at one request per second — but
+    // only between requests, so don't burn a second after the last one.
+    if (qi < QUERIES.length - 1) {
+      await new Promise((r) => setTimeout(r, 1100));
+    }
   }
 
   return found.sort((a, b) => a.miles - b.miles).slice(0, limit);

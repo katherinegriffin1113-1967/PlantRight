@@ -64,16 +64,41 @@ const combineText = (results: SearchResult[], max = 60000) =>
     .join("\n\n")
     .slice(0, max);
 
-// The result a snippet came from, so we can cite it. Falls back to the first
-// result with a URL when we can't tell which page mentioned the term.
+// Firecrawl gives us MARKDOWN, and anything we show a user must read as prose.
+// Reduce markdown to plain text: drop images, unwrap links to their text,
+// strip heading/emphasis/quote markers, and drop table/nav lines outright.
+function markdownToProse(md: string): string {
+  return md
+    .split("\n")
+    // Table rows, nav crumbs, and heading lines are never good sentences.
+    .filter((line) => !/^\s*(#|>|\||[-*_]{3,})/.test(line) && !line.includes(" | "))
+    .join("\n")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // links → their text
+    .replace(/[*_`~]+/g, "") // emphasis / code markers
+    .replace(/\\([\\`*_{}[\]()#+.!-])/g, "$1"); // markdown escapes
+}
+
+// A candidate localNote must look like a sentence a person wrote, not leftover
+// page furniture that survived the strip above.
+function readsAsProse(s: string): boolean {
+  if (s.length < 30 || s.length > 240) return false;
+  if (/https?:\/\/|www\.|\]\(|[|#{}<>]/.test(s)) return false;
+  // Mostly letters and spaces — tables of numbers and menus fail this.
+  const letters = (s.match(/[a-z]/gi) ?? []).length;
+  return letters / s.length > 0.7;
+}
+
+// The result a snippet came from, so we can cite it. Returns undefined when no
+// page provably mentions the term — an uncited chip beats a wrong citation,
+// and the UI renders chips without links just fine.
 function sourceFor(term: string, results: SearchResult[]): string | undefined {
   const t = term.toLowerCase();
-  const hit = results.find((r) =>
+  return results.find((r) =>
     `${r.title ?? ""} ${r.description ?? ""} ${r.markdown ?? ""}`
       .toLowerCase()
       .includes(t)
-  );
-  return hit?.url ?? results.find((r) => r.url)?.url;
+  )?.url;
 }
 
 function extractSoil(corpus: string, results: SearchResult[]): {
@@ -142,9 +167,11 @@ export function attachLocalNotes(
   results: SearchResult[]
 ): number {
   let enriched = 0;
-  const sentences = combineText(results)
+  const sentences = markdownToProse(combineText(results))
     .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+/);
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(readsAsProse);
   for (const rec of recs) {
     // "Tomato (early variety)" → "tomato"; also try the last significant word
     // ("Sugar Snap Peas" → "peas") so common names still match.
@@ -153,14 +180,10 @@ export function attachLocalNotes(
     const needle = base.length >= 4 ? base : short;
     const hit = sentences.find((s) => {
       const sl = s.toLowerCase();
-      return (
-        sl.length >= 30 &&
-        sl.length <= 240 &&
-        (sl.includes(needle) || (short.length >= 4 && sl.includes(short)))
-      );
+      return sl.includes(needle) || (short.length >= 4 && sl.includes(short));
     });
     if (hit) {
-      rec.localNote = hit.trim();
+      rec.localNote = hit;
       rec.localNoteSource = sourceFor(needle, results);
       enriched++;
     }
